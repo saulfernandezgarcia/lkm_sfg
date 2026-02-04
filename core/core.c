@@ -22,15 +22,38 @@ static struct dentry *lkm_dir;
 
 
 /**
- * Registration / unregistration API Definition
+ * Registration API Definition
+ * @check: plugin check to register.
+ * 
+ * Registration is in queue fashion (list_add_tail).
  */
 int core_register_check(struct lkm_check *check){
+    pr_info("lkm: check %s requesting registration.\n", check->name);
 
+    mutex_lock(&check_lock);
+    pr_info("lkm: check %s began registration.\n", check->name);
+    list_add_tail(&(check->list), &check_list);
+    pr_info("lkm: check %s finished registration.\n", check->name);
+    mutex_unlock(&check_lock);
+
+    return 0;
 }
 EXPORT_SYMBOL(core_register_check);
 
+/**
+ * Unregistration API Definition
+ * @check: plugin check to unregister.
+ * 
+ * Unregistration.
+ */
 void core_unregister_check(struct lkm_check *check){
+    pr_info("lkm: check %s requesting unregistration.\n", check->name);
 
+    mutex_lock(&check_lock);
+    pr_info("lkm: check %s began unregistration.\n", check->name);
+    list_del(&check)
+    pr_info("lkm: check %s finished unregistration.\n", check->name);
+    mutex_unlock(&check_lock);
 }
 EXPORT_SYMBOL(core_unregister_check);
 
