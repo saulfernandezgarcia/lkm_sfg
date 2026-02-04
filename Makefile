@@ -1,0 +1,24 @@
+PWD := $(CURDIR)
+MID := sfg		#Module Installation Directory
+
+all:
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+
+clean:
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+
+install:
+	$(MAKE) INSTALL_MOD_DIR=$(MID) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules_install
+
+# ^^ include in "install" function also a "depmod -a"?
+
+minstall: all install
+
+uninstall:
+	-modprobe -r core
+	-rrmod plugin_a
+	rm -r /lib/modules/$(shell uname -r)/sfg
+	depmod -a
+
+# insert (with modprobe)?
+# remove?

@@ -1,0 +1,7 @@
+# Build sfgcore.ko
+
+obj-m := sfgcore.o
+
+sfgcore-objs += core.o
+
+ccflags-y := -I$(src)/../include
