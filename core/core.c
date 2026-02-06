@@ -96,9 +96,10 @@ void core_unregister_check(struct lkm_check *check){
 
     mutex_lock(&check_lock);
     pr_info("lkm: check %s began unregistration\n", check->name);
-    list_del(&check)
+    list_del(&(check->list));
     pr_info("lkm: check %s finished unregistration\n", check->name);
     mutex_unlock(&check_lock);
+
 }
 EXPORT_SYMBOL(core_unregister_check);
 
@@ -107,6 +108,8 @@ EXPORT_SYMBOL(core_unregister_check);
  * __init
  * 
  * https://docs.kernel.org/filesystems/debugfs.html
+ * 
+ * Debugfs files will be at /sys/kernel/debug/lkmsfg/
  */
 static int __init core_init(void){
     pr_info("lkm CORE: initiating in kernel\n");
@@ -115,9 +118,9 @@ static int __init core_init(void){
 
     pr_info("lkm CORE: creating interactive files\n");
 
-    debugfs_create_file("available", 0444, lkm_dir, &ops_available);
-    debugfs_create_file("order", 0644, lkm_dir, &ops_order);
-    debugfs_create_file("results", 0444, lkm_dir, &ops_results);
+    debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
+    //debugfs_create_file("order", 0644, lkm_dir, NULL, &fops_order);
+    //debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
 
     pr_info("lkm CORE: loaded into kernel\n");
 

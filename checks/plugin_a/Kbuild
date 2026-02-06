@@ -1,0 +1,7 @@
+# Build plugin_a.ko
+
+obj-m := sfgplugina.o
+
+sfgplugina-objs = plugin_a.o
+
+ccflags-y := -I$(src)/../../include

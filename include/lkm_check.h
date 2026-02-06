@@ -17,7 +17,7 @@
  * 
  */
 struct lkm_check {
-    int api_version;
+    int api_version;            //change to abi(?)
     
     struct module *owner;
     struct list_head list;

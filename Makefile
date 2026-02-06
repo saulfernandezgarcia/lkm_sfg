@@ -1,5 +1,6 @@
 PWD := $(CURDIR)
 MID := sfg		#Module Installation Directory
+# they will be installed at /lib/modules/<kernelversion>/sfg/
 
 all:
 	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
@@ -9,6 +10,7 @@ clean:
 
 install:
 	$(MAKE) INSTALL_MOD_DIR=$(MID) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules_install
+	depmod -a
 
 # ^^ include in "install" function also a "depmod -a"?
 
