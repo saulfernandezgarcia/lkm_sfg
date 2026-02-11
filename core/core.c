@@ -16,14 +16,14 @@
 
 
 static LIST_HEAD(check_list);
-static DEFINE_MUTEX(check_lock);
+static DEFINE_MUTEX(lock_check_list);
 
 static struct dentry *lkm_dir;
 
 
 #define MAX_SELECTED_COUNT 32
-static DEFINE_MUTEX(selected_lock);
-static char* selected_checks[MAX_SELECTED_COUNT];
+static DEFINE_MUTEX(lock_selected);
+static lkm_check* selected_checks[MAX_SELECTED_COUNT];
 static int selected_checks_count;
 
 //_________________________ "available" file section
@@ -38,11 +38,11 @@ static int available_open(struct inode *inode, struct file *file);
 static int available_show(struct seq_file *m, void *v){
     struct lkm_check *c;
 
-    mutex_lock(&check_lock);
+    mutex_lock(&lock_check_list);
     list_for_each_entry(c, &check_list, list){
         seq_printf(m, "%s\n", c->name);
     }
-    mutex_unlock(&check_lock);
+    mutex_unlock(&lock_check_list);
 
     return 0;
 }
@@ -111,13 +111,39 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
     // Update pointer to offset from start of file
     *offset += size;
 
-    //Actually store the data into our array of checks
-    mutex_lock(&selected_lock);
-    if (selected_checks_count < MAX_SELECTED_COUNT){
-        selected_checks[selected_checks_count] = kstrdup(my_kbuffer, GFP_KERNEL);
-        selected_checks_count++;
+
+    
+    //Check to see if the plugin is available
+    mutex_lock(&lock_check_list);
+
+    lkm_check *c;
+    lkm_check *found = NULL;
+    list_for_each_entry(c, &check_list, list){
+        if(strcmp(c->name, my_kbuffer) == 0){
+            found = c;
+            break;
+        }
     }
-    mutex_unlock(&selected_lock);
+    mutex_unlock(&lock_check_list);
+
+    //Actually store the data into our array of checks
+    mutex_lock(&lock_selected);
+    if(found){
+
+        //__Check if plugin is not already included in "to run"
+        int i;
+        for(i = 0; i < selected_checks_count; i++){
+            if(selected_checks[i] == found)
+                break;
+        }
+
+        if(i == selected_checks_count && selected_checks_count < MAX_SELECTED_COUNT){
+            selected_checks[selected_checks_count] = found;
+            selected_checks_count++;
+        }
+
+    }
+    mutex_unlock(&lock_selected);
 
     //As per convention, return the number of written bytes
     return size;
@@ -125,11 +151,11 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
 
 static int selected_show(struct seq_file *m, void *v){
 
-    mutex_lock(&selected_lock);
+    mutex_lock(&lock_selected);
     for(int i = 0; i < selected_checks_count; i++){
-        seq_printf(m, "%s\n", selected_checks[i]);
+        seq_printf(m, "%s\n", selected_checks[i]->name);
     }
-    mutex_unlock(&selected_lock);
+    mutex_unlock(&lock_selected);
 
     return 0;
 }
@@ -166,11 +192,11 @@ static const struct file_operations fops_selected = {
 int core_register_check(struct lkm_check *check){
     pr_info("lkm: check %s requesting registration\n", check->name);
 
-    mutex_lock(&check_lock);
+    mutex_lock(&lock_check_list);
     pr_info("lkm: check %s began registration\n", check->name);
     list_add_tail(&(check->list), &check_list);
     pr_info("lkm: check %s finished registration\n", check->name);
-    mutex_unlock(&check_lock);
+    mutex_unlock(&lock_check_list);
 
     return 0;
 }
@@ -181,24 +207,40 @@ EXPORT_SYMBOL(core_register_check);
  * @check: plugin check to unregister.
  * 
  * Unregistration.
+ * We first remove the plugin from the "selected" array to be able
  */
 void core_unregister_check(struct lkm_check *check){
     pr_info("lkm: check %s requesting unregistration\n", check->name);
 
-    mutex_lock(&check_lock);
+    //Removing plugin from "selected" array
+    mutex_lock(&lock_selected);
+
+    //__Check if plugin is not already included in "to run"
+    int i;
+    for(i = 0; i < selected_checks_count; i++){
+        if(selected_checks[i] == check)
+            break;
+    }
+
+    //__If found, remove it AND preserve order: shift left https://stackoverflow.com/a/12633220
+    if(i < selected_checks_count){
+        for(i; i < selected_checks_count - 1; i++){
+            selected_checks[i] = selected_checks[i+1];
+        }
+        selected_checks_count--;
+    }
+    mutex_unlock(&lock_selected);
+
+
+    //Removing plugin from "available" list
+    mutex_lock(&lock_check_list);
     pr_info("lkm: check %s began unregistration\n", check->name);
     list_del(&(check->list));
     pr_info("lkm: check %s finished unregistration\n", check->name);
-    mutex_unlock(&check_lock);
+    mutex_unlock(&lock_check_list);
 
-    //I need to remove it from the selected plugins if it was selected.
-    /*
-    mutex_lock(&selected_lock);
-    while(selected){
 
-    }
-    mutex_unlock(&selected_lock);
-    */
+    
 }
 EXPORT_SYMBOL(core_unregister_check);
 
@@ -238,21 +280,22 @@ static void __exit core_exit(void){
     pr_info("lkm CORE: removing from kernel\n");
 
     //Free allocated strings in selected_checks:
-    mutex_lock(&selected_lock);
-    for(int i = 0; i < selected_checks_count; i++){
-        pr_info("Freeing from selected_checks: %s", selected_checks[i]);
-        kfree(selected_checks[i]);
-    }
-    mutex_unlock(&selected_lock);
+    mutex_lock(&lock_selected);
+    pr_info("Freeing from selected_checks: %s", selected_checks[i]);
+    selected_checks_count = 0;
+    //kfree(selected_checks[i]); <-- should not do since plugin handles its ¡struct as a static struct,
+    //so unloading the lkm implies freeing its static data
+    mutex_unlock(&lock_selected);
 
     //Destroy list of available checks:
     struct lkm_check *c;
-    mutex_lock(&check_lock);
-    list_for_each_entry(c, &check_list, list){
+    struct lkm_check *temp_storage
+    mutex_lock(&lock_check_list);
+    list_for_each_entry_safe(c, temp_storage, &check_list, list){
         pr_info("Deleting plugin from available ones: %s\n", c->name);
         list_del(&c->list);
     }
-    mutex_unlock(&check_lock);
+    mutex_unlock(&lock_check_list);
 
     //Remove debugfs:
     debugfs_remove(lkm_dir);
