@@ -23,7 +23,7 @@ static struct dentry *lkm_dir;
 
 #define MAX_SELECTED_COUNT 32
 static DEFINE_MUTEX(lock_selected);
-static lkm_check* selected_checks[MAX_SELECTED_COUNT];
+static struct lkm_check* selected_checks[MAX_SELECTED_COUNT];
 static int selected_checks_count;
 
 //_________________________ "available" file section
@@ -116,10 +116,10 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
     //Check to see if the plugin is available
     mutex_lock(&lock_check_list);
 
-    lkm_check *c;
-    lkm_check *found = NULL;
+    struct lkm_check *c;
+    struct lkm_check *found = NULL;
     list_for_each_entry(c, &check_list, list){
-        if(strcmp(c->name, my_kbuffer) == 0){
+        if(strcmp(c->alias, my_kbuffer) == 0 || strcmp(c->name, my_kbuffer) == 0){
             found = c;
             break;
         }
@@ -138,6 +138,7 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
         }
 
         if(i == selected_checks_count && selected_checks_count < MAX_SELECTED_COUNT){
+            pr_info("lkm: added to 'selected' the check with alias: %s\n", found->alias);
             selected_checks[selected_checks_count] = found;
             selected_checks_count++;
         }
@@ -152,6 +153,7 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
 static int selected_show(struct seq_file *m, void *v){
 
     mutex_lock(&lock_selected);
+    pr_info("lkm: printing selected checks\n");
     for(int i = 0; i < selected_checks_count; i++){
         seq_printf(m, "%s\n", selected_checks[i]->name);
     }
@@ -224,7 +226,7 @@ void core_unregister_check(struct lkm_check *check){
 
     //__If found, remove it AND preserve order: shift left https://stackoverflow.com/a/12633220
     if(i < selected_checks_count){
-        for(i; i < selected_checks_count - 1; i++){
+        for(; i < selected_checks_count - 1; i++){
             selected_checks[i] = selected_checks[i+1];
         }
         selected_checks_count--;
@@ -281,7 +283,7 @@ static void __exit core_exit(void){
 
     //Free allocated strings in selected_checks:
     mutex_lock(&lock_selected);
-    pr_info("Freeing from selected_checks: %s", selected_checks[i]);
+    pr_info("Emptying selected_checks.");
     selected_checks_count = 0;
     //kfree(selected_checks[i]); <-- should not do since plugin handles its ¡struct as a static struct,
     //so unloading the lkm implies freeing its static data
@@ -289,7 +291,7 @@ static void __exit core_exit(void){
 
     //Destroy list of available checks:
     struct lkm_check *c;
-    struct lkm_check *temp_storage
+    struct lkm_check *temp_storage;
     mutex_lock(&lock_check_list);
     list_for_each_entry_safe(c, temp_storage, &check_list, list){
         pr_info("Deleting plugin from available ones: %s\n", c->name);

@@ -16,6 +16,8 @@ install:
 
 minstall: all install
 
+mic: all install clean
+
 uninstall:
 	-modprobe -r core
 	-rrmod plugin_a

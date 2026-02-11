@@ -13,6 +13,7 @@ static struct lkm_check plugin_a_check = {
     .api_version = LKM_CHECK_API_VERSION,
     .owner = THIS_MODULE,
     .name = "plugin_a",
+    .alias = "plugina",
     .run = plugin_a_process,
 };
 

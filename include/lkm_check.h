@@ -11,6 +11,7 @@
 
 #define LKM_CHECK_API_VERSION 1
 #define PLUGIN_MAX_NAME 64
+#define PLUGIN_MAX_ALIAS 64
 #define PLUGIN_MAX_CATEGORY 64
 
 /**
@@ -24,6 +25,7 @@ struct lkm_check {
 
     const char name[PLUGIN_MAX_NAME];
     const char category[PLUGIN_MAX_CATEGORY];
+    const char alias[PLUGIN_MAX_ALIAS];
 
     int (*run)(struct seq_file *m);
     // "run" is a function pointer that returns an integer and that takes a seq_file struct pointer
