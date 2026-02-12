@@ -182,6 +182,40 @@ static const struct file_operations fops_selected = {
 };
 
 
+//_________________________ "results" file section
+
+static int results_show(struct seq_file* m, void *v){
+    struct lkm_check *c = NULL;
+    
+    mutex_lock(&lock_check_list);
+    for(int i = 0; i < selected_checks_count; i++){
+        list_for_each_entry(c, &check_list, list){
+            if(strcmp(c->alias, selected_checks[i]->alias) == 0 || strcmp(c->name, selected_checks[i]->name) == 0){
+                seq_printf(m, "==== %s ====\n", c->alias);
+                c->run(m);
+                seq_printf(m, "\n");
+            }
+        }
+    }
+    mutex_unlock(&lock_check_list);
+
+    return 0;
+}
+
+static int results_open(struct inode * inode, struct file* file){
+    return single_open(file, results_show, NULL);
+}
+
+static const struct file_operations fops_results = {
+    .owner = THIS_MODULE,
+    .open = results_open,
+    .read = seq_read,
+    .llseek = seq_lseek,
+    .release = single_release,
+};
+
+
+
 
 //-----------------------------------------------------
 
@@ -263,7 +297,7 @@ static int __init core_init(void){
 
     debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
     debugfs_create_file("selected", 0644, lkm_dir, NULL, &fops_selected);
-    //debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
+    debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
 
     pr_info("lkm CORE: loaded into kernel\n");
 

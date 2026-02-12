@@ -12,15 +12,16 @@ static void __exit plugin_exit(void);
 static struct lkm_check plugin_a_check = {
     .api_version = LKM_CHECK_API_VERSION,
     .owner = THIS_MODULE,
-    .name = "plugin_a",
+    .name = "plugina",
     .alias = "plugina",
+    .category = "sample",
     .run = plugin_a_process,
 };
 
 
 static int plugin_a_process(struct seq_file *m){
-    pr_info("Plugin A is saying hi!");
-    //seq_printf(m, "--- Plugin A is running its specific code!");
+    pr_info("Plugin A is saying hi!\n");
+    seq_printf(m, "--- Plugin A is running its specific code!\n");
     return 0;
 }
 
