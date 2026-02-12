@@ -21,7 +21,6 @@ struct lkm_check {
     int api_version;            //change to abi(?)
     
     struct module *owner;
-    struct list_head list;
 
     const char name[PLUGIN_MAX_NAME];
     const char category[PLUGIN_MAX_CATEGORY];
