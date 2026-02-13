@@ -169,6 +169,18 @@ static const struct file_operations fops_add = {
     .write = add_write,
 };
 
+//--------------------------------------------------------------------------------
+// Empty
+
+static ssize_t empty_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
+    core_empty_selected();
+    return size;
+}
+
+static const struct file_operations fops_empty = {
+    .owner = THIS_MODULE,
+    .write = empty_write,
+};
 
 //--------------------------------------------------------------------------------
 
@@ -186,6 +198,7 @@ int core_debugfs_init(void){
     debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
     debugfs_create_file("selected", 0444, lkm_dir, NULL, &fops_selected);
     debugfs_create_file("add", 0200, lkm_dir, NULL, &fops_add);
+    debugfs_create_file("empty", 0200, lkm_dir, NULL, &fops_empty);
     debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
 
     return 0;

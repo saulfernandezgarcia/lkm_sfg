@@ -107,10 +107,17 @@ int core_select_check(const char *name){
         }
 
         if(unselected){
-            pr_info("lkm: plugin %s was not in selected list. It will now be added.", sel->check->alias);
+            //__Take module reference for refcount
+            if(!try_module_get(found->owner)){
+                mutex_unlock(&lock_list_selected);
+                return -EINVAL;
+            }
+            
+            pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
             //Allocate new entry_selected for list_selected
             sel = kmalloc(sizeof(*sel), GFP_KERNEL);
             if(!sel){
+                module_put(found->owner);
                 mutex_unlock(&lock_list_selected);
                 return -ENOMEM;
             }
@@ -126,6 +133,19 @@ int core_select_check(const char *name){
     }
 
     return 0;
+}
+
+void core_empty_selected(void){
+    struct entry_selected *pos;
+    struct entry_selected *temp;
+
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry_safe(pos, temp, &list_selected, list){
+        list_del(&pos->list);
+        module_put(pos->check->owner);
+        kfree(pos);
+    }
+    mutex_unlock(&lock_list_selected);
 }
 
 //--------------------------------------------------------------------------------
@@ -179,6 +199,7 @@ void core_unregister_check(struct lkm_check *check){
     list_for_each_entry_safe(pos, temp, &list_selected, list){
         if(pos->check == check){
             list_del(&pos->list);
+            module_put(pos->check->owner);
             kfree(pos);
         }
     }
@@ -241,6 +262,7 @@ static void __exit core_exit(void){
     list_for_each_entry_safe(pos_s, temp_s, &list_selected, list){
         pr_info("-Deleting plugin from list of selected: %s\n", pos_s->check->alias);
         list_del(&pos_s->list);
+        module_put(pos_s->check->owner);
         kfree(pos_s);
     }
     mutex_unlock(&lock_list_selected);
