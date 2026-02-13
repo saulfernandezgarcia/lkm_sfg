@@ -12,6 +12,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include "core_internal.h"
 #include "lkm_check.h"
 
 
@@ -20,8 +21,6 @@ static DEFINE_MUTEX(lock_list_available);
 
 static LIST_HEAD(list_selected);
 static DEFINE_MUTEX(lock_list_selected);
-
-static struct dentry *lkm_dir;
 
 
 struct entry_available{
@@ -35,134 +34,89 @@ struct entry_selected{
     struct lkm_check *check;
 };
 
-//_________________________ "available" file section
+//--------------------------------------------------------------------------------
+//List traversal
 
-static int available_show(struct seq_file *m, void *v);
-static int available_open(struct inode *inode, struct file *file);
-
-
-/**
- * fops_available contains "available_open" which calls "single_open" using "available_show".
- */
-static int available_show(struct seq_file *m, void *v){
+void core_for_each_available(
+    void (*cb)(struct lkm_check *check, void *data),
+    void*data){
+    
     struct entry_available *pos;
 
     mutex_lock(&lock_list_available);
     list_for_each_entry(pos, &list_available, list){
-        seq_printf(m, "%s\n", pos->check->alias);
+        cb(pos->check, data);
     }
     mutex_unlock(&lock_list_available);
-
-    return 0;
-}
-
-/**
- * @inode: must be passed as part of file_operations.open function definition.
- * @file:  
- * Using "single_open" instead of "seq_open" for simplicity (no large data handling)
- * Using "single_open" requires having "single_release" as .release
- */
-static int available_open(struct inode *inode, struct file *file){
-    return single_open(file, available_show, NULL);
 }
 
 
+void core_for_each_selected(
+    void (*cb)(struct lkm_check *check, void *data),
+    void*data){
+    
+    struct entry_selected *pos;
+
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry(pos, &list_selected, list){
+        cb(pos->check, data);
+    }
+    mutex_unlock(&lock_list_selected);
+}
+
+
+//--------------------------------------------------------------------------------
+//Entry selection
+
 /**
- * https://docs.kernel.org/filesystems/seq_file.html#:~:text=Making%20it%20all%20work%C2%B6
- * https://docs.kernel.org/filesystems/seq_file.html#:~:text=The%20other%20operations%20of%20interest%20%2D%20read%28%29%2C%20llseek%28%29%2C%20and%20release%28%29%20%2D%20are%20all%20implemented%20by%20the%20seq%5Ffile%20code%20itself%2E%20So%20a%20virtual%20file%E2%80%99s%20file%5Foperations%20structure%20will%20look%20like
- * https://docs.kernel.org/filesystems/seq_file.html#:~:text=The%20extra%2Dsimple%20version%C2%B6
  * 
+ * errno-base.h
  */
-static const struct file_operations fops_available = {
-    .owner = THIS_MODULE,
-    .open = available_open,
-    .read = seq_read,
-    .llseek = seq_lseek,
-    .release = single_release,
-};
-
-
-//_________________________ "selected" file section
-
-/**
- * https://tldp.org/LDP/lkmpg/2.4/html/c577.htm#:~:text=loff%5Ft%20%2A%29%3B-,static
- * https://stackoverflow.com/a/27722831
- * 
- * copy_from_user: https://elixir.bootlin.com/linux/v6.18.6/source/include/linux/uaccess.h#L205
- * 
- * In kernel space, copy a string: https://docs.kernel.org/core-api/kernel-api.html
- * - CAREFUL, REQUIRES KFREE AT SOME POINT!!!
- * 
- * We receive a "buffer" of length "len" from the user. 
- * We pass to "copy_from_user" a destination ("selected" file), the origin, and the 
- * length of data from the origin.
- * 
- * TODO: reconsider using simple_write_to_buffer
- */
-static ssize_t selected_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
-    //For now, only copying one item from the user to the file
+int core_select_check(const char *name){
     
-    char my_kbuffer[256];
+    struct lkm_check *found = NULL;
+    struct entry_available *pos = NULL;
 
-    // Copy what the user wrote to our own buffer
-    if (size >= sizeof(my_kbuffer) || size == 0)
-        return -EINVAL;
-    if (copy_from_user(my_kbuffer, user_buffer, size))
-        return -EFAULT;
-    
-    //Because "echo" by the user adds a trailing newline at the end, 
-    //we must change it to null terminated:
-    if(size > 0 && my_kbuffer[size-1] == '\n')
-        my_kbuffer[size-1] = '\0';
-    else
-        my_kbuffer[size] = '\0';
-    
-    // Update pointer to offset from start of file
-    *offset += size;
-
-
-    
     //Check to see if the plugin is available
     mutex_lock(&lock_list_available);
-
-    struct lkm_check *check;
-    struct lkm_check *found = NULL;
-    struct entry_available *pos;
     list_for_each_entry(pos, &list_available, list){
-        check = pos->check;
-        if(strcmp(check->alias, my_kbuffer) == 0 || strcmp(check->name, my_kbuffer) == 0){
-            found = check;
+        if(strcmp(pos->check->alias, name) == 0 || strcmp(pos->check->name, name) == 0){
+            found = pos->check;
             break;
         }
     }
     mutex_unlock(&lock_list_available);
 
-    //If found, actually store the data into our array of checks
-    if(found){
+    //If found, actually store the data into our list of selected checks
+    if(!found){
+        return -ENOENT;
+    } else if (found){
 
-        struct entry_selected *pos;
-        struct entry_selected *new_entry = NULL;
-        bool already_selected = false;
+        bool unselected = true;
+        struct entry_selected *sel = NULL;
 
         mutex_lock(&lock_list_selected);
 
-        //__Check if plugin is not already included in list of selected
-        list_for_each_entry(pos, &list_selected, list){
-            if(pos->check == found){
-                already_selected = true;
-                break;
+        //__Check if plugin is already in list of selected
+        list_for_each_entry(sel, &list_selected, list){
+            if(sel->check == found){
+                unselected = false;
+                mutex_unlock(&lock_list_selected);
+                return -EEXIST;
             }
         }
 
-        if(!already_selected){
-            new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
-            if(!new_entry){
+        if(unselected){
+            pr_info("lkm: plugin %s was not in selected list. It will now be added.", sel->check->alias);
+            //Allocate new entry_selected for list_selected
+            sel = kmalloc(sizeof(*sel), GFP_KERNEL);
+            if(!sel){
                 mutex_unlock(&lock_list_selected);
                 return -ENOMEM;
             }
             
-            new_entry->check = found;
-            list_add_tail(&new_entry->list, &list_selected);
+            sel->check = found;
+            list_add_tail(&sel->list, &list_selected);
 
             pr_info("lkm: added to 'selected' the check with alias: %s\n", found->alias);
         }
@@ -171,79 +125,11 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
 
     }
 
-    //As per convention, return the number of written bytes
-    return size;
-}
-
-static int selected_show(struct seq_file *m, void *v){
-
-    struct entry_selected *pos;
-
-    mutex_lock(&lock_list_selected);
-    pr_info("lkm: printing selected checks\n");
-
-    list_for_each_entry(pos, &list_selected, list){
-        seq_printf(m, "%s\n", pos->check->name);
-    }
-
-    mutex_unlock(&lock_list_selected);
-
     return 0;
 }
 
-static int selected_open(struct inode *inode, struct file* file){
-    return single_open(file, selected_show, NULL);
-}
+//--------------------------------------------------------------------------------
 
-/**
- * https://docs.kernel.org/filesystems/seq_file.html#:~:text=Making%20it%20all%20work%C2%B6
- * https://docs.kernel.org/filesystems/seq_file.html#:~:text=The%20other%20operations%20of%20interest%20%2D%20read%28%29%2C%20llseek%28%29%2C%20and%20release%28%29%20%2D%20are%20all%20implemented%20by%20the%20seq%5Ffile%20code%20itself%2E%20So%20a%20virtual%20file%E2%80%99s%20file%5Foperations%20structure%20will%20look%20like
- * https://docs.kernel.org/filesystems/seq_file.html#:~:text=The%20extra%2Dsimple%20version%C2%B6
- * 
- */
-static const struct file_operations fops_selected = {
-    .owner = THIS_MODULE,
-    .write = selected_write,
-    .open = selected_open,
-    .read = seq_read,
-    .llseek = seq_lseek,
-    .release = single_release,
-};
-
-
-//_________________________ "results" file section
-
-static int results_show(struct seq_file* m, void *v){
-    struct entry_selected *pos;
-    
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry(pos, &list_selected, list){
-        struct lkm_check *check = pos->check;
-        seq_printf(m, "==== %s ====\n", check->alias);
-        check->run(m);
-        seq_printf(m, "\n");
-        
-    }
-    mutex_unlock(&lock_list_selected);
-    return 0;
-}
-
-static int results_open(struct inode * inode, struct file* file){
-    return single_open(file, results_show, NULL);
-}
-
-static const struct file_operations fops_results = {
-    .owner = THIS_MODULE,
-    .open = results_open,
-    .read = seq_read,
-    .llseek = seq_lseek,
-    .release = single_release,
-};
-
-
-
-
-//-----------------------------------------------------
 
 /**
  * Registration API Definition
@@ -322,6 +208,9 @@ void core_unregister_check(struct lkm_check *check){
 EXPORT_SYMBOL(core_unregister_check);
 
 
+//--------------------------------------------------------------------------------
+
+
 /**
  * __init
  * 
@@ -330,20 +219,8 @@ EXPORT_SYMBOL(core_unregister_check);
  * Debugfs files will be at /sys/kernel/debug/lkmsfg/
  */
 static int __init core_init(void){
-    pr_info("lkm CORE: initiating in kernel\n");
-    
-    lkm_dir = debugfs_create_dir("lkmsfg", NULL);
-
-    pr_info("lkm CORE: creating interactive files\n");
-
-    debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
-    debugfs_create_file("selected", 0644, lkm_dir, NULL, &fops_selected);
-    debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
-
-    pr_info("lkm CORE: loaded into kernel\n");
-
-    return 0;
-
+    pr_info("lkm CORE: loading into kernel\n");
+    return core_debugfs_init();
 }
 module_init(core_init);
 
@@ -357,14 +234,14 @@ static void __exit core_exit(void){
     pr_info("lkm CORE: removing from kernel\n");
 
     //Free list_selected
-    struct entry_selected *pos;
-    struct entry_selected *temp;
+    struct entry_selected *pos_s;
+    struct entry_selected *temp_s;
     
     mutex_lock(&lock_list_selected);
-    pr_info("-Emptying selected_checks.\n");
-    list_for_each_entry_safe(pos, temp, &list_selected, list){
-        list_del(&pos->list);
-        kfree(pos);
+    list_for_each_entry_safe(pos_s, temp_s, &list_selected, list){
+        pr_info("-Deleting plugin from list of selected: %s\n", pos_s->check->alias);
+        list_del(&pos_s->list);
+        kfree(pos_s);
     }
     mutex_unlock(&lock_list_selected);
 
@@ -375,7 +252,7 @@ static void __exit core_exit(void){
     mutex_lock(&lock_list_available);
 
     list_for_each_entry_safe(pos_a, temp_a, &list_available, list){
-            pr_info("-Deleting plugin from available ones: %s\n", pos_a->check->alias);
+        pr_info("-Deleting plugin from available ones: %s\n", pos_a->check->alias);
         list_del(&pos_a->list);
         kfree(pos_a);
     }
@@ -383,13 +260,14 @@ static void __exit core_exit(void){
     mutex_unlock(&lock_list_available);
 
     //Remove debugfs:
-    debugfs_remove(lkm_dir);
+    core_debugfs_exit();
 
     pr_info("lkm CORE: removed from kernel\n");
 }
 module_exit(core_exit);
 
-//-----------------------------------------------------
+//--------------------------------------------------------------------------------
+
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("sfgcore");
 MODULE_AUTHOR("SAUL FERNANDEZ GARCIA");

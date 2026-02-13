@@ -2,6 +2,6 @@
 
 obj-m := sfgcore.o
 
-sfgcore-objs += core.o
+sfgcore-objs += core.o core_debugfs.o
 
 ccflags-y := -I$(src)/../include
