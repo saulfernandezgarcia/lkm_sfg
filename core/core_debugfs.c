@@ -70,53 +70,6 @@ static int selected_open(struct inode *inode, struct file* file){
 }
 
 /**
- * https://tldp.org/LDP/lkmpg/2.4/html/c577.htm#:~:text=loff%5Ft%20%2A%29%3B-,static
- * https://stackoverflow.com/a/27722831
- * 
- * copy_from_user: https://elixir.bootlin.com/linux/v6.18.6/source/include/linux/uaccess.h#L205
- * 
- * In kernel space, copy a string: https://docs.kernel.org/core-api/kernel-api.html
- * - CAREFUL, REQUIRES KFREE AT SOME POINT!!!
- * 
- * We receive a "buffer" of length "len" from the user. 
- * We pass to "copy_from_user" a destination ("selected" file), the origin, and the 
- * length of data from the origin.
- * 
- * TODO: reconsider using simple_write_to_buffer
- */
-static ssize_t selected_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
-    //For now, only copying one item from the user to the file
-    
-    char my_kbuffer[256];
-    int ret;
-
-    // Copy what the user wrote to our own buffer
-    if (size >= sizeof(my_kbuffer) || size == 0)
-        return -EINVAL;
-    if (copy_from_user(my_kbuffer, user_buffer, size))
-        return -EFAULT;
-    
-    //Because "echo" by the user adds a trailing newline at the end, 
-    //we must change it to null terminated:
-    if(size > 0 && my_kbuffer[size-1] == '\n')
-        my_kbuffer[size-1] = '\0';
-    else
-        my_kbuffer[size] = '\0';
-    
-    // Update pointer to offset from start of file
-    *offset += size;
-
-    //Locate and select according to passed name/alias
-    ret = core_select_check(my_kbuffer);
-    //As per convention, return the number of written bytes
-    if(ret < 0){
-        return ret;
-    } else {
-        return size;
-    }
-}
-
-/**
  * https://docs.kernel.org/filesystems/seq_file.html#:~:text=Making%20it%20all%20work%C2%B6
  * https://docs.kernel.org/filesystems/seq_file.html#:~:text=The%20other%20operations%20of%20interest%20%2D%20read%28%29%2C%20llseek%28%29%2C%20and%20release%28%29%20%2D%20are%20all%20implemented%20by%20the%20seq%5Ffile%20code%20itself%2E%20So%20a%20virtual%20file%E2%80%99s%20file%5Foperations%20structure%20will%20look%20like
  * https://docs.kernel.org/filesystems/seq_file.html#:~:text=The%20extra%2Dsimple%20version%C2%B6
@@ -124,7 +77,6 @@ static ssize_t selected_write(struct file* file, const char __user *user_buffer,
  */
 static const struct file_operations fops_selected = {
     .owner = THIS_MODULE,
-    .write = selected_write,
     .open = selected_open,
     .read = seq_read,
     .llseek = seq_lseek,
@@ -160,7 +112,62 @@ static const struct file_operations fops_results = {
 };
 
 //--------------------------------------------------------------------------------
-// Remove
+// Add
+
+/**
+ * https://tldp.org/LDP/lkmpg/2.4/html/c577.htm#:~:text=loff%5Ft%20%2A%29%3B-,static
+ * https://stackoverflow.com/a/27722831
+ * 
+ * copy_from_user: https://elixir.bootlin.com/linux/v6.18.6/source/include/linux/uaccess.h#L205
+ * 
+ * In kernel space, copy a string: https://docs.kernel.org/core-api/kernel-api.html
+ * - CAREFUL, REQUIRES KFREE AT SOME POINT!!!
+ * 
+ * We receive a "buffer" of length "len" from the user. 
+ * We pass to "copy_from_user" a destination ("selected" file), the origin, and the 
+ * length of data from the origin.
+ * 
+ * TODO: reconsider using simple_write_to_buffer
+ */
+static ssize_t add_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
+    //For now, only copying one item from the user to the file
+    
+    char my_kbuffer[256];
+    int ret;
+
+    // Copy what the user wrote to our own buffer
+    if (size >= sizeof(my_kbuffer) || size == 0)
+        return -EINVAL;
+    if (copy_from_user(my_kbuffer, user_buffer, size))
+        return -EFAULT;
+    
+    //Because "echo" by the user adds a trailing newline at the end, 
+    //we must change it to null terminated:
+    if(size > 0 && my_kbuffer[size-1] == '\n')
+        my_kbuffer[size-1] = '\0';
+    else
+        my_kbuffer[size] = '\0';
+    
+
+
+    //Locate and select according to passed name/alias
+    ret = core_select_check(my_kbuffer);
+    //As per convention, return the number of written bytes
+    if(ret < 0){
+        return ret;
+    } else {
+        // Update pointer to offset from start of file
+        *offset += size;
+
+        return size;
+    }
+}
+
+
+static const struct file_operations fops_add = {
+    .owner = THIS_MODULE,
+    .write = add_write,
+};
 
 
 //--------------------------------------------------------------------------------
@@ -177,7 +184,8 @@ int core_debugfs_init(void){
     pr_info("lkm CORE: creating interactive command files\n");
 
     debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
-    debugfs_create_file("selected", 0644, lkm_dir, NULL, &fops_selected);
+    debugfs_create_file("selected", 0444, lkm_dir, NULL, &fops_selected);
+    debugfs_create_file("add", 0200, lkm_dir, NULL, &fops_add);
     debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
 
     return 0;
