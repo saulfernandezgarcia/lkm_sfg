@@ -127,6 +127,10 @@ static const struct file_operations fops_results = {
  * We pass to "copy_from_user" a destination ("selected" file), the origin, and the 
  * length of data from the origin.
  * 
+ * 
+ * https://docs.kernel.org/core-api/kernel-api.html
+ * https://c-for-dummies.com/blog/?p=1769
+ * 
  * TODO: reconsider using simple_write_to_buffer
  */
 static ssize_t add_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
@@ -150,11 +154,27 @@ static ssize_t add_write(struct file* file, const char __user *user_buffer, size
     
 
 
-    //Locate and select according to passed name/alias
-    ret = core_select_check(my_kbuffer);
+
+    // Tokenize, locate, and select according to passed name/alias
+    // - best effort approach
+    char *cur = my_kbuffer;
+    char *token;
+    int last_error = 0;
+    const char* delimiters = " \t,";
+
+    while((token = strsep(&cur, delimiters)) != NULL){
+        if(*token != '\0'){
+            ret = core_select_check(token);
+
+            if(ret < 0)
+                last_error = ret;
+        }
+    }
+
+
     //As per convention, return the number of written bytes
-    if(ret < 0){
-        return ret;
+    if(last_error < 0){
+        return last_error;
     } else {
         // Update pointer to offset from start of file
         *offset += size;
@@ -206,8 +226,21 @@ static ssize_t remove_write(struct file* file, const char __user *user_buffer, s
     
 
 
-    //Locate and select according to passed name/alias
-    ret = core_remove_check(my_kbuffer);
+    // Tokenize, locate, and remove according to passed name/alias
+    // - best effort approach
+    char *cur = my_kbuffer;
+    char *token;
+    int last_error = 0;
+    const char* delimiters = " \t,";
+
+    while((token = strsep(&cur, delimiters)) != NULL){
+        if(*token != '\0'){
+            ret = core_remove_check(token);
+
+            if(ret < 0)
+                last_error = ret;
+        }
+    }
 
     //As per convention, return the number of written bytes
     if(ret < 0){
