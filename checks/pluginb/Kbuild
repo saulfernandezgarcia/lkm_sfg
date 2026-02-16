@@ -1,0 +1,7 @@
+# Build plugin_b
+
+obj-m := pluginb.o
+
+pluginb-objs = plugin_b.o
+
+ccflags-y := -I$(src)/../../include
