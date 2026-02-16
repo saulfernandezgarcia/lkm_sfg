@@ -183,6 +183,49 @@ static const struct file_operations fops_empty = {
 };
 
 //--------------------------------------------------------------------------------
+// Remove specific
+
+static ssize_t remove_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
+    //For now, only removing one item at a time
+
+    char my_kbuffer[256];
+    int ret;
+
+    // Copy what the user wrote to our own buffer
+    if (size >= sizeof(my_kbuffer) || size == 0)
+        return -EINVAL;
+    if (copy_from_user(my_kbuffer, user_buffer, size))
+        return -EFAULT;
+    
+    //Because "echo" by the user adds a trailing newline at the end, 
+    //we must change it to null terminated:
+    if(size > 0 && my_kbuffer[size-1] == '\n')
+        my_kbuffer[size-1] = '\0';
+    else
+        my_kbuffer[size] = '\0';
+    
+
+
+    //Locate and select according to passed name/alias
+    ret = core_remove_check(my_kbuffer);
+
+    //As per convention, return the number of written bytes
+    if(ret < 0){
+        return ret;
+    } else {
+        // Update pointer to offset from start of file
+        *offset += size;
+
+        return size;
+    }
+}
+
+static const struct file_operations fops_remove = {
+    .owner = THIS_MODULE,
+    .write = remove_write,
+};
+
+//--------------------------------------------------------------------------------
 
 
 int core_debugfs_init(void){
@@ -198,6 +241,7 @@ int core_debugfs_init(void){
     debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
     debugfs_create_file("selected", 0444, lkm_dir, NULL, &fops_selected);
     debugfs_create_file("add", 0200, lkm_dir, NULL, &fops_add);
+    debugfs_create_file("remove", 0200, lkm_dir, NULL, &fops_remove);
     debugfs_create_file("empty", 0200, lkm_dir, NULL, &fops_empty);
     debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
 

@@ -135,6 +135,30 @@ int core_select_check(const char *name){
     return 0;
 }
 
+int core_remove_check(const char*name){
+    struct entry_selected *pos;
+    struct entry_selected *temp;
+    int found = 0;
+
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry_safe(pos, temp, &list_selected, list){
+        if(strcmp(pos->check->alias, name) == 0 || strcmp(pos->check->name, name) == 0){
+            list_del(&pos->list);
+            pr_info("lkm: removed from 'selected' the check with alias: %s\n", pos->check->alias);
+            module_put(pos->check->owner);
+            kfree(pos);
+            found = 1;
+            break;
+        }
+    }
+    mutex_unlock(&lock_list_selected);
+
+    if(!found)
+        return -ENOENT;
+
+    return 0;
+}
+
 void core_empty_selected(void){
     struct entry_selected *pos;
     struct entry_selected *temp;

@@ -24,6 +24,11 @@ void core_for_each_selected(
 int core_select_check(const char *name);
 
 /**
+ * Remove one specific item from "selected"
+ */
+int core_remove_check(const char *name);
+
+/**
  * To empty the selected list
  */
 void core_empty_selected(void);
