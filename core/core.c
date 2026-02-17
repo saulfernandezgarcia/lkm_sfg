@@ -168,7 +168,7 @@ int core_select_check(const char *name){
             
             pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
             //Allocate new entry_selected for list_selected
-            sel = kmalloc(sizeof(*sel), GFP_KERNEL);
+            sel = kzalloc(sizeof(*sel), GFP_KERNEL);
             if(!sel){
                 module_put(found->owner);
                 mutex_unlock(&lock_list_selected);
@@ -220,7 +220,7 @@ int core_addall(void){
                 last_error = -EINVAL;
             }
 
-            new_sel = kmalloc(sizeof(*new_sel), GFP_KERNEL);
+            new_sel = kzalloc(sizeof(*new_sel), GFP_KERNEL);
             if(!new_sel){
                 module_put(pos->check->owner);
                 last_error = -ENOMEM;
@@ -290,7 +290,7 @@ int core_register_check(struct lkm_check *check){
     pr_info("lkm: check %s began registration\n", check->name);
 
     struct entry_available *new_entry = NULL;
-    new_entry = kmalloc(sizeof(*new_entry), GFP_KERNEL);
+    new_entry = kzalloc(sizeof(*new_entry), GFP_KERNEL);
     if(!new_entry){
         mutex_unlock(&lock_list_available);
         return -ENOMEM;
