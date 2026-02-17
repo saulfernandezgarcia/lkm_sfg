@@ -65,6 +65,57 @@ void core_for_each_selected(
 }
 
 
+/**
+ * 
+ * kmalloc calloc array allocation: kcalloc
+ * https://www.kernel.org/doc/html/v5.0/core-api/mm-api.html#c.kzalloc
+ */
+void core_for_each_selected_run(
+    void (*cb)(struct lkm_check *check, void *data),
+    void*data){
+    
+    struct entry_selected *pos = NULL;
+    struct lkm_check **snapshot = NULL;
+    int count = 0;
+    int i = 0;
+
+    //Count how many checks to run and allocate array
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry(pos, &list_selected, list){
+        count++;
+    }
+    
+
+    if(!count){
+        mutex_unlock(&lock_list_selected);
+        return;
+    }
+
+    snapshot = kcalloc(count, sizeof(*snapshot), GFP_KERNEL);
+    if(!snapshot){
+        mutex_unlock(&lock_list_selected);
+        return;
+    }
+
+    //Add checks to snapshot + pin them to avoid unregistration
+    list_for_each_entry(pos, &list_selected, list){
+        if(try_module_get(pos->check->owner)){
+            snapshot[i] = pos->check;
+            i++;
+        }
+    }
+    mutex_unlock(&lock_list_selected);
+
+    //Run the checks with no locked lists along the process
+    for(int j = 0; j < i; j++){
+        cb(snapshot[j], data);
+        module_put(snapshot[j]->owner);
+    }
+
+    kfree(snapshot);
+
+}
+
 //--------------------------------------------------------------------------------
 //Entry selection
 

@@ -17,7 +17,9 @@ void core_for_each_selected(
     void (*cb)(struct lkm_check *check, void *data),
     void *data);
 
-
+void core_for_each_selected_run(
+    void (*cb)(struct lkm_check *check, void *data),
+    void *data);
 /**
  * To select the specified check by alias/name
  */

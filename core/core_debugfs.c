@@ -95,7 +95,7 @@ static void results_cb(struct lkm_check *check, void*data){
 }
 
 static int results_show(struct seq_file* m, void *v){
-    core_for_each_selected(results_cb, m);
+    core_for_each_selected_run(results_cb, m);
     return 0;
 }
 
@@ -182,7 +182,6 @@ static ssize_t add_write(struct file* file, const char __user *user_buffer, size
         return size;
     }
 }
-
 
 static const struct file_operations fops_add = {
     .owner = THIS_MODULE,
