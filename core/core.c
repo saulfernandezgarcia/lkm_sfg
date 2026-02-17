@@ -85,7 +85,6 @@ int core_select_check(const char *name){
             break;
         }
     }
-    mutex_unlock(&lock_list_available);
 
     //If found, actually store the data into our list of selected checks
     if(!found){
@@ -129,10 +128,59 @@ int core_select_check(const char *name){
         }
 
         mutex_unlock(&lock_list_selected);
+        mutex_unlock(&lock_list_available);
 
     }
 
     return 0;
+}
+
+/**
+ * 
+ * Best-effort
+ */
+int core_addall(void){
+
+
+    struct entry_available *pos = NULL;
+    struct entry_selected *sel = NULL;
+    struct entry_selected *new_sel = NULL;
+
+    int last_error = 0;
+
+    mutex_lock(&lock_list_available);
+    mutex_lock(&lock_list_selected);
+
+    list_for_each_entry(pos, &list_available, list){
+
+        int already = 0;
+        list_for_each_entry(sel, &list_selected, list){
+            if(sel->check == pos->check){
+                already = 1;
+                break;
+            }
+        }
+
+        if(!already){
+            if(!try_module_get(pos->check->owner)){
+                last_error = -EINVAL;
+            }
+
+            new_sel = kmalloc(sizeof(*new_sel), GFP_KERNEL);
+            if(!new_sel){
+                module_put(pos->check->owner);
+                last_error = -ENOMEM;
+            }
+
+            new_sel->check = pos->check;
+            list_add_tail(&new_sel->list, &list_selected);
+        }
+    }
+
+    mutex_unlock(&lock_list_selected);
+    mutex_unlock(&lock_list_available);
+
+    return last_error;
 }
 
 int core_remove_check(const char*name){
@@ -214,27 +262,26 @@ EXPORT_SYMBOL(core_register_check);
 void core_unregister_check(struct lkm_check *check){
     pr_info("lkm: check %s requesting unregistration\n", check->name);
 
-    //Removing plugin from "list_selected":
-    struct entry_selected *pos;
-    struct entry_selected *temp;
-
+    mutex_lock(&lock_list_available);
     mutex_lock(&lock_list_selected);
+
+    //Removing plugin from "list_selected":
+    struct entry_selected *pos_s;
+    struct entry_selected *temp_s;
     
-    list_for_each_entry_safe(pos, temp, &list_selected, list){
-        if(pos->check == check){
-            list_del(&pos->list);
-            module_put(pos->check->owner);
-            kfree(pos);
+    list_for_each_entry_safe(pos_s, temp_s, &list_selected, list){
+        if(pos_s->check == check){
+            list_del(&pos_s->list);
+            module_put(pos_s->check->owner);
+            kfree(pos_s);
+            break;
         }
     }
-    mutex_unlock(&lock_list_selected);
 
     //Removing plugin from "available" list
-
     struct entry_available *pos_a;
     struct entry_available *temp_a;
 
-    mutex_lock(&lock_list_available);
     pr_info("lkm: check %s began unregistration\n", check->name);
 
     list_for_each_entry_safe(pos_a, temp_a, &list_available, list){
@@ -245,10 +292,9 @@ void core_unregister_check(struct lkm_check *check){
         }
     }
     pr_info("lkm: check %s finished unregistration\n", check->name);
+
+    mutex_unlock(&lock_list_selected);
     mutex_unlock(&lock_list_available);
-
-
-    
 }
 EXPORT_SYMBOL(core_unregister_check);
 

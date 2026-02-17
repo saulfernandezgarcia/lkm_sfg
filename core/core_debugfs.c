@@ -203,6 +203,27 @@ static const struct file_operations fops_empty = {
 };
 
 //--------------------------------------------------------------------------------
+// Add all
+
+static ssize_t addall_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
+    int ret = 0;
+    
+    ret = core_addall();
+    
+    if(ret < 0){
+        return ret;
+    }
+    *offset += size;
+    return size;
+}
+
+static const struct file_operations fops_addall = {
+    .owner = THIS_MODULE,
+    .write = addall_write,
+};
+
+
+//--------------------------------------------------------------------------------
 // Remove specific
 
 static ssize_t remove_write(struct file* file, const char __user *user_buffer, size_t size, loff_t *offset){
@@ -273,10 +294,11 @@ int core_debugfs_init(void){
 
     debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
     debugfs_create_file("selected", 0444, lkm_dir, NULL, &fops_selected);
+    debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
     debugfs_create_file("add", 0200, lkm_dir, NULL, &fops_add);
     debugfs_create_file("remove", 0200, lkm_dir, NULL, &fops_remove);
     debugfs_create_file("empty", 0200, lkm_dir, NULL, &fops_empty);
-    debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
+    debugfs_create_file("addall", 0200, lkm_dir, NULL, &fops_addall);
 
     return 0;
 }

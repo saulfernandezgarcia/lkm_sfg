@@ -33,6 +33,8 @@ int core_remove_check(const char *name);
  */
 void core_empty_selected(void);
 
+int core_addall(void);
+
 /**
  * Debugfs
  */

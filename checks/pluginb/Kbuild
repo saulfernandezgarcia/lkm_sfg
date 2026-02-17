@@ -1,7 +1,7 @@
 # Build plugin_b
 
-obj-m := pluginb.o
+obj-m := sfgpluginb.o
 
-pluginb-objs = plugin_b.o
+sfgpluginb-objs = plugin_b.o
 
 ccflags-y := -I$(src)/../../include
