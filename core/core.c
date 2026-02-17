@@ -74,6 +74,7 @@ void core_for_each_selected(
  */
 int core_select_check(const char *name){
     
+    int available = 0;
     struct lkm_check *found = NULL;
     struct entry_available *pos = NULL;
 
@@ -82,14 +83,16 @@ int core_select_check(const char *name){
     list_for_each_entry(pos, &list_available, list){
         if(strcmp(pos->check->alias, name) == 0 || strcmp(pos->check->name, name) == 0){
             found = pos->check;
+            available = 1;
             break;
         }
     }
 
     //If found, actually store the data into our list of selected checks
-    if(!found){
+    if(!available){
+        mutex_unlock(&lock_list_available);
         return -ENOENT;
-    } else if (found){
+    } else if (available){
 
         bool unselected = true;
         struct entry_selected *sel = NULL;
