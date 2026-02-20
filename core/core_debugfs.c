@@ -280,24 +280,52 @@ static const struct file_operations fops_remove = {
 
 //--------------------------------------------------------------------------------
 
+/**
+ * 
+ * https://stackoverflow.com/a/6281389
+ * 
+ * Inspiration for the #define section from list.h > INIT_LIST_HEAD() > rwonce.h > WRITE_ONCE
+ */
+#define create_debugfs_file_or_fail(name, mode, fops) \
+do { \
+    if(!debugfs_create_file(name, mode, lkm_dir, NULL, fops)){ \
+        pr_err("lkm CORE: failed to create debugfs file \"%s\"\n", name); \
+        debugfs_remove(lkm_dir); \
+        return -ENOMEM; \
+    } \
+} while(0)
 
+
+/**
+ * 
+ * https://manpages.debian.org/testing/linux-manual-4.11/debugfs_create_dir.9
+ * https://classes.engineering.wustl.edu/cse422/code_pointers/05_kernel_code_error_checking.html
+ * 
+ * Inspiration for the #define section from list.h > INIT_LIST_HEAD() > rwonce.h > WRITE_ONCE
+ * 
+ * 
+ */
 int core_debugfs_init(void){
     pr_info("lkm CORE: creating debugfs directory\n");
 
     lkm_dir = debugfs_create_dir("lkmsfg", NULL);
-    if(!lkm_dir)
-        return -ENOMEM;
+    if(IS_ERR(lkm_dir))
+        return PTR_ERR(lkm_dir);
+    if(!lkm_dir){
+        pr_err("lkm CORE: debugfs returned NULL. Is debugfs enabled in the kernel?");
+        return -ENODEV;
+    }
     pr_info("lkm CORE: directory was created\n");
 
     pr_info("lkm CORE: creating interactive command files\n");
 
-    debugfs_create_file("available", 0444, lkm_dir, NULL, &fops_available);
-    debugfs_create_file("selected", 0444, lkm_dir, NULL, &fops_selected);
-    debugfs_create_file("results", 0444, lkm_dir, NULL, &fops_results);
-    debugfs_create_file("add", 0200, lkm_dir, NULL, &fops_add);
-    debugfs_create_file("remove", 0200, lkm_dir, NULL, &fops_remove);
-    debugfs_create_file("empty", 0200, lkm_dir, NULL, &fops_empty);
-    debugfs_create_file("addall", 0200, lkm_dir, NULL, &fops_addall);
+    create_debugfs_file_or_fail("available", 0444, &fops_available);
+    create_debugfs_file_or_fail("selected", 0444, &fops_selected);
+    create_debugfs_file_or_fail("results", 0444, &fops_results);
+    create_debugfs_file_or_fail("add", 0200, &fops_add);
+    create_debugfs_file_or_fail("remove", 0200, &fops_remove);
+    create_debugfs_file_or_fail("empty", 0200, &fops_empty);
+    create_debugfs_file_or_fail("addall", 0200, &fops_addall);
 
     return 0;
 }
