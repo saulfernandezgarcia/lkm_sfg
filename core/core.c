@@ -46,26 +46,40 @@ void core_for_each_available(
     void*data){
     
     struct entry_available *pos;
+    struct lkm_check **snapshot;
+
+    int count = 0;
+    int i = 0;
 
     mutex_lock(&lock_list_available);
+    list_for_each_entry(pos, &list_available, list)
+        count++;
+
+    if(!count){
+        mutex_unlock(&lock_list_available);
+        return;
+    }
+
+    snapshot = kcalloc(count, sizeof(*snapshot), GFP_KERNEL);
+    if(!snapshot){
+        mutex_unlock(&lock_list_available);
+        return;
+    }
+
     list_for_each_entry(pos, &list_available, list){
-        cb(pos->check, data);
+        if(try_module_get(pos->check->owner)){
+            snapshot[i] = pos->check;
+            i++;
+        }
     }
     mutex_unlock(&lock_list_available);
-}
 
-
-void core_for_each_selected(
-    void (*cb)(struct lkm_check *check, void *data),
-    void*data){
-    
-    struct entry_selected *pos;
-
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry(pos, &list_selected, list){
-        cb(pos->check, data);
+    for(int j = 0; j < i; j++){
+        cb(snapshot[j], data);
+        module_put(snapshot[j]->owner);
     }
-    mutex_unlock(&lock_list_selected);
+
+    kfree(snapshot);    
 }
 
 
@@ -74,7 +88,7 @@ void core_for_each_selected(
  * kmalloc calloc array allocation: kcalloc
  * https://www.kernel.org/doc/html/v5.0/core-api/mm-api.html#c.kzalloc
  */
-void core_for_each_selected_run(
+void core_for_each_selected(
     void (*cb)(struct lkm_check *check, void *data),
     void*data){
     
