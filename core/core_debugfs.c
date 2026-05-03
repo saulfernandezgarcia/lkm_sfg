@@ -142,7 +142,8 @@ static ssize_t add_write(struct file* file, const char __user *user_buffer, size
     //For now, only copying one item from the user to the file
     
     char my_kbuffer[256];
-    int ret;
+    int ret = 0;
+
 
     // Copy what the user wrote to our own buffer
     if (size >= sizeof(my_kbuffer) || size == 0)
@@ -157,7 +158,6 @@ static ssize_t add_write(struct file* file, const char __user *user_buffer, size
     else
         my_kbuffer[size] = '\0';
     
-
 
 
     // Tokenize, locate, and select according to passed name/alias
@@ -268,8 +268,8 @@ static ssize_t remove_write(struct file* file, const char __user *user_buffer, s
     }
 
     //As per convention, return the number of written bytes
-    if(ret < 0){
-        return ret;
+    if(last_error < 0){
+        return last_error;
     } else {
         // Update pointer to offset from start of file
         *offset += size;
@@ -285,24 +285,9 @@ static const struct file_operations fops_remove = {
 
 //--------------------------------------------------------------------------------
 
+
 /**
- * 
  * https://stackoverflow.com/a/6281389
- * 
- * Inspiration for the #define section from list.h > INIT_LIST_HEAD() > rwonce.h > WRITE_ONCE
- */
-#define create_debugfs_file_or_fail(name, mode, fops) \
-do { \
-    if(!debugfs_create_file(name, mode, lkm_dir, NULL, fops)){ \
-        pr_err("lkm CORE: failed to create debugfs file \"%s\"\n", name); \
-        debugfs_remove(lkm_dir); \
-        return -ENOMEM; \
-    } \
-} while(0)
-
-
-/**
- * 
  * https://manpages.debian.org/testing/linux-manual-4.11/debugfs_create_dir.9
  * https://classes.engineering.wustl.edu/cse422/code_pointers/05_kernel_code_error_checking.html
  * 
@@ -311,30 +296,51 @@ do { \
  * 
  */
 int core_debugfs_init(void){
+    struct dentry *file;
+    
     pr_info("lkm CORE: creating debugfs directory\n");
+
 
     lkm_dir = debugfs_create_dir("lkmsfg", NULL);
     if(IS_ERR(lkm_dir))
         return PTR_ERR(lkm_dir);
     if(!lkm_dir){
-        pr_err("lkm CORE: debugfs returned NULL. Is debugfs enabled in the kernel?");
+        pr_err("lkm CORE: debugfs returned NULL. Is debugfs enabled in the kernel?\n");
         return -ENODEV;
     }
     pr_info("lkm CORE: directory was created\n");
 
     pr_info("lkm CORE: creating interactive command files\n");
 
-    create_debugfs_file_or_fail("available", 0444, &fops_available);
-    create_debugfs_file_or_fail("selected", 0444, &fops_selected);
-    create_debugfs_file_or_fail("results", 0444, &fops_results);
-    create_debugfs_file_or_fail("add", 0200, &fops_add);
-    create_debugfs_file_or_fail("remove", 0200, &fops_remove);
-    create_debugfs_file_or_fail("empty", 0200, &fops_empty);
-    create_debugfs_file_or_fail("addall", 0200, &fops_addall);
+
+#define CREATE_FILE(name, mode, fops) \
+    do{ \
+        file = debugfs_create_file(name, mode, lkm_dir, NULL, fops); \
+        if(!file) \
+            goto err; \
+    } while (0)
+
+    CREATE_FILE("available", 0444, &fops_available);
+    CREATE_FILE("selected", 0444, &fops_selected);
+    CREATE_FILE("results", 0444, &fops_results);
+    CREATE_FILE("add", 0200, &fops_add);
+    CREATE_FILE("remove", 0200, &fops_remove);
+    CREATE_FILE("empty", 0200, &fops_empty);
+    CREATE_FILE("addall", 0200, &fops_addall);
+
+#undef CREATE_FILE
 
     return 0;
+
+err:
+    pr_err("lkm CORE: failed to create debugfs entries\n");
+    debugfs_remove(lkm_dir);
+    return -ENOMEM;
 }
 
 void core_debugfs_exit(void){
-    debugfs_remove(lkm_dir);
+    if(!IS_ERR_OR_NULL(lkm_dir))
+        debugfs_remove(lkm_dir);
+    
+    lkm_dir = NULL;
 }
