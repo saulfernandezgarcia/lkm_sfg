@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Copyright (C) 2026 Saúl Fernández García <https://github.com/saulfernandezgarcia>
+#
+
 CONFIG_CORE = m
 CONFIG_PLUGIN_A = m
 CONFIG_PLUGIN_B = m
