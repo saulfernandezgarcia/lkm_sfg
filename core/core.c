@@ -194,16 +194,14 @@ out_unlock_available:
 
 /**
  * 
- * Best-effort
+ * Best-effort approach, returns last error if any.
  */
 int core_addall(void){
-
 
     struct entry_available *pos = NULL;
     struct entry_selected *sel = NULL;
     struct entry_selected *new_sel = NULL;
-
-    int last_error = 0;
+    int last_ret = 0;
 
     mutex_lock(&lock_list_available);
     mutex_lock(&lock_list_selected);
@@ -218,26 +216,30 @@ int core_addall(void){
             }
         }
 
-        if(!already){
-            if(!try_module_get(pos->check->owner)){
-                last_error = -EINVAL;
-            }
+        if(already)
+            continue;
 
-            new_sel = kzalloc(sizeof(*new_sel), GFP_KERNEL);
-            if(!new_sel){
-                module_put(pos->check->owner);
-                last_error = -ENOMEM;
-            }
-
-            new_sel->check = pos->check;
-            list_add_tail(&new_sel->list, &list_selected);
+        if(!try_module_get(pos->check->owner)){
+            last_ret = -EINVAL;
+            continue;
         }
+
+        new_sel = kzalloc(sizeof(*new_sel), GFP_KERNEL);
+        if(!new_sel){
+            module_put(pos->check->owner);
+            last_ret = -ENOMEM;
+            continue;
+        }
+
+        new_sel->check = pos->check;
+        list_add_tail(&new_sel->list, &list_selected);
+        pr_info("lkm: added to 'selected' the check with alias: %s\n", new_sel->check->alias);
     }
 
-    mutex_unlock(&lock_list_selected);
     mutex_unlock(&lock_list_available);
+    mutex_unlock(&lock_list_selected);
 
-    return last_error;
+    return last_ret;
 }
 
 int core_remove_check(const char*name){
