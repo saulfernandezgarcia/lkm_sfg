@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
+/**
+ * Copyright (C) 2026 Saúl Fernández García <https://github.com/saulfernandezgarcia>
+ */
+
 #ifndef _LKM_CHECK_H
 #define _LKM_CHECK_H
 

@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
+/**
+ * Copyright (C) 2026 Saúl Fernández García <https://github.com/saulfernandezgarcia>
+ */
+
+
 #ifndef _CORE_INTERNAL_H
 #define _CORE_INTERNAL_H
 

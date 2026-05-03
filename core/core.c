@@ -1,6 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
- * Test project configuration
+ * LKM: core manager
+ * 
+ * Copyright (C) 2026 Saúl Fernández García <https://github.com/saulfernandezgarcia>
  */
+
 
 #include <linux/debugfs.h>
 #include <linux/init.h>
