@@ -125,72 +125,71 @@ void core_for_each_selected_run(
 
 /**
  * 
- * errno-base.h
  */
 int core_select_check(const char *name){
     
-    int available = 0;
+    int ret = 0;
     struct lkm_check *found = NULL;
     struct entry_available *pos = NULL;
+    struct entry_selected *sel = NULL;
 
     //Check to see if the plugin is available
     mutex_lock(&lock_list_available);
     list_for_each_entry(pos, &list_available, list){
         if(strcmp(pos->check->alias, name) == 0 || strcmp(pos->check->name, name) == 0){
             found = pos->check;
-            available = 1;
             break;
         }
     }
 
     //If found, actually store the data into our list of selected checks
-    if(!available){
-        mutex_unlock(&lock_list_available);
-        return -ENOENT;
-    } else if (available){
+    if(!found){
+        ret = -ENOENT;
+        goto out_unlock_available;
 
-        bool unselected = true;
-        struct entry_selected *sel = NULL;
+    } 
 
-        mutex_lock(&lock_list_selected);
-
-        //__Check if plugin is already in list of selected
-        list_for_each_entry(sel, &list_selected, list){
-            if(sel->check == found){
-                unselected = false;
-                mutex_unlock(&lock_list_selected);
-                return -EEXIST;
-            }
+    //__Check if plugin is already in list of selected
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry(sel, &list_selected, list){
+        if(sel->check == found){
+            ret = -EEXIST;
+            goto out_unlock_selected;
         }
-
-        if(unselected){
-            //__Take module reference for refcount
-            if(!try_module_get(found->owner)){
-                mutex_unlock(&lock_list_selected);
-                return -EINVAL;
-            }
-            
-            pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
-            //Allocate new entry_selected for list_selected
-            sel = kzalloc(sizeof(*sel), GFP_KERNEL);
-            if(!sel){
-                module_put(found->owner);
-                mutex_unlock(&lock_list_selected);
-                return -ENOMEM;
-            }
-            
-            sel->check = found;
-            list_add_tail(&sel->list, &list_selected);
-
-            pr_info("lkm: added to 'selected' the check with alias: %s\n", found->alias);
-        }
-
-        mutex_unlock(&lock_list_selected);
-        mutex_unlock(&lock_list_available);
-
     }
 
-    return 0;
+    //__Take module reference for refcount
+    if(!try_module_get(found->owner)){
+        ret = -EINVAL;
+        goto out_unlock_selected;
+    }
+    
+    //Allocate new entry_selected for list_selected
+    sel = kzalloc(sizeof(*sel), GFP_KERNEL);
+    if(!sel){
+        ret = -ENOMEM;
+        goto out_module_put;
+    }
+    
+    pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
+    sel->check = found;
+    list_add_tail(&sel->list, &list_selected);
+    ret = 0;
+    pr_info("lkm: added to 'selected' the check with alias: %s\n", found->alias);
+
+    goto out_unlock_selected; //equivalent to performing unlock(selected) and unlock(available) and then return 0;
+
+out_module_put:
+    module_put(found->owner);
+
+out_unlock_selected:
+    mutex_unlock(&lock_list_selected);
+
+out_unlock_available:
+    mutex_unlock(&lock_list_available);
+
+
+    return ret;
 }
 
 /**
