@@ -236,8 +236,8 @@ int core_addall(void){
         pr_info("lkm: added to 'selected' the check with alias: %s\n", new_sel->check->alias);
     }
 
-    mutex_unlock(&lock_list_available);
     mutex_unlock(&lock_list_selected);
+    mutex_unlock(&lock_list_available);
 
     return last_ret;
 }
