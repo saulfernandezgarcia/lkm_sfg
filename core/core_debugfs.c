@@ -100,7 +100,7 @@ static void results_cb(struct lkm_check *check, void*data){
 }
 
 static int results_show(struct seq_file* m, void *v){
-    core_for_each_selected_run(results_cb, m);
+    core_for_each_selected(results_cb, m);
     return 0;
 }
 
