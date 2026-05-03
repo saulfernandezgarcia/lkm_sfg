@@ -125,86 +125,83 @@ void core_for_each_selected_run(
 
 /**
  * 
- * errno-base.h
  */
 int core_select_check(const char *name){
     
-    int available = 0;
+    int ret = 0;
     struct lkm_check *found = NULL;
     struct entry_available *pos = NULL;
+    struct entry_selected *sel = NULL;
 
     //Check to see if the plugin is available
     mutex_lock(&lock_list_available);
     list_for_each_entry(pos, &list_available, list){
         if(strcmp(pos->check->alias, name) == 0 || strcmp(pos->check->name, name) == 0){
             found = pos->check;
-            available = 1;
             break;
         }
     }
 
     //If found, actually store the data into our list of selected checks
-    if(!available){
-        mutex_unlock(&lock_list_available);
-        return -ENOENT;
-    } else if (available){
+    if(!found){
+        ret = -ENOENT;
+        goto out_unlock_available;
 
-        bool unselected = true;
-        struct entry_selected *sel = NULL;
+    } 
 
-        mutex_lock(&lock_list_selected);
-
-        //__Check if plugin is already in list of selected
-        list_for_each_entry(sel, &list_selected, list){
-            if(sel->check == found){
-                unselected = false;
-                mutex_unlock(&lock_list_selected);
-                return -EEXIST;
-            }
+    //__Check if plugin is already in list of selected
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry(sel, &list_selected, list){
+        if(sel->check == found){
+            ret = -EEXIST;
+            goto out_unlock_selected;
         }
-
-        if(unselected){
-            //__Take module reference for refcount
-            if(!try_module_get(found->owner)){
-                mutex_unlock(&lock_list_selected);
-                return -EINVAL;
-            }
-            
-            pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
-            //Allocate new entry_selected for list_selected
-            sel = kzalloc(sizeof(*sel), GFP_KERNEL);
-            if(!sel){
-                module_put(found->owner);
-                mutex_unlock(&lock_list_selected);
-                return -ENOMEM;
-            }
-            
-            sel->check = found;
-            list_add_tail(&sel->list, &list_selected);
-
-            pr_info("lkm: added to 'selected' the check with alias: %s\n", found->alias);
-        }
-
-        mutex_unlock(&lock_list_selected);
-        mutex_unlock(&lock_list_available);
-
     }
 
-    return 0;
+    //__Take module reference for refcount
+    if(!try_module_get(found->owner)){
+        ret = -EINVAL;
+        goto out_unlock_selected;
+    }
+    
+    //Allocate new entry_selected for list_selected
+    sel = kzalloc(sizeof(*sel), GFP_KERNEL);
+    if(!sel){
+        ret = -ENOMEM;
+        goto out_module_put;
+    }
+    
+    pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
+    sel->check = found;
+    list_add_tail(&sel->list, &list_selected);
+    ret = 0;
+    pr_info("lkm: added to 'selected' the check with alias: %s\n", found->alias);
+
+    goto out_unlock_selected; //equivalent to performing unlock(selected) and unlock(available) and then return 0;
+
+out_module_put:
+    module_put(found->owner);
+
+out_unlock_selected:
+    mutex_unlock(&lock_list_selected);
+
+out_unlock_available:
+    mutex_unlock(&lock_list_available);
+
+
+    return ret;
 }
 
 /**
  * 
- * Best-effort
+ * Best-effort approach, returns last error if any.
  */
 int core_addall(void){
-
 
     struct entry_available *pos = NULL;
     struct entry_selected *sel = NULL;
     struct entry_selected *new_sel = NULL;
-
-    int last_error = 0;
+    int last_ret = 0;
 
     mutex_lock(&lock_list_available);
     mutex_lock(&lock_list_selected);
@@ -219,28 +216,36 @@ int core_addall(void){
             }
         }
 
-        if(!already){
-            if(!try_module_get(pos->check->owner)){
-                last_error = -EINVAL;
-            }
+        if(already)
+            continue;
 
-            new_sel = kzalloc(sizeof(*new_sel), GFP_KERNEL);
-            if(!new_sel){
-                module_put(pos->check->owner);
-                last_error = -ENOMEM;
-            }
-
-            new_sel->check = pos->check;
-            list_add_tail(&new_sel->list, &list_selected);
+        if(!try_module_get(pos->check->owner)){
+            last_ret = -EINVAL;
+            continue;
         }
+
+        new_sel = kzalloc(sizeof(*new_sel), GFP_KERNEL);
+        if(!new_sel){
+            module_put(pos->check->owner);
+            last_ret = -ENOMEM;
+            continue;
+        }
+
+        new_sel->check = pos->check;
+        list_add_tail(&new_sel->list, &list_selected);
+        pr_info("lkm: added to 'selected' the check with alias: %s\n", new_sel->check->alias);
     }
 
-    mutex_unlock(&lock_list_selected);
     mutex_unlock(&lock_list_available);
+    mutex_unlock(&lock_list_selected);
 
-    return last_error;
+    return last_ret;
 }
 
+/**
+ * 
+ * list_for_each_entry_safe()
+ */
 int core_remove_check(const char*name){
     struct entry_selected *pos;
     struct entry_selected *temp;
@@ -288,25 +293,28 @@ void core_empty_selected(void){
  * Registration is in queue fashion (list_add_tail).
  */
 int core_register_check(struct lkm_check *check){
-    pr_info("lkm: check %s requesting registration\n", check->name);
+    
+    int ret = 0;
+    struct entry_available *new_entry = NULL;
 
+    pr_info("lkm: check %s requesting registration\n", check->name);
     mutex_lock(&lock_list_available);
     pr_info("lkm: check %s began registration\n", check->name);
 
-    struct entry_available *new_entry = NULL;
     new_entry = kzalloc(sizeof(*new_entry), GFP_KERNEL);
     if(!new_entry){
-        mutex_unlock(&lock_list_available);
-        return -ENOMEM;
+        ret = -ENOMEM;
+        goto out_unlock_available;
     }
 
     new_entry->check = check;
     list_add_tail(&new_entry->list, &list_available);
-
     pr_info("lkm: check %s finished registration\n", check->name);
+
+out_unlock_available:
     mutex_unlock(&lock_list_available);
 
-    return 0;
+    return ret;
 }
 EXPORT_SYMBOL(core_register_check);
 
