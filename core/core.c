@@ -293,25 +293,28 @@ void core_empty_selected(void){
  * Registration is in queue fashion (list_add_tail).
  */
 int core_register_check(struct lkm_check *check){
-    pr_info("lkm: check %s requesting registration\n", check->name);
+    
+    int ret = 0;
+    struct entry_available *new_entry = NULL;
 
+    pr_info("lkm: check %s requesting registration\n", check->name);
     mutex_lock(&lock_list_available);
     pr_info("lkm: check %s began registration\n", check->name);
 
-    struct entry_available *new_entry = NULL;
     new_entry = kzalloc(sizeof(*new_entry), GFP_KERNEL);
     if(!new_entry){
-        mutex_unlock(&lock_list_available);
-        return -ENOMEM;
+        ret = -ENOMEM;
+        goto out_unlock_available;
     }
 
     new_entry->check = check;
     list_add_tail(&new_entry->list, &list_available);
-
     pr_info("lkm: check %s finished registration\n", check->name);
+
+out_unlock_available:
     mutex_unlock(&lock_list_available);
 
-    return 0;
+    return ret;
 }
 EXPORT_SYMBOL(core_register_check);
 
