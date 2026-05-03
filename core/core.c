@@ -242,6 +242,10 @@ int core_addall(void){
     return last_ret;
 }
 
+/**
+ * 
+ * list_for_each_entry_safe()
+ */
 int core_remove_check(const char*name){
     struct entry_selected *pos;
     struct entry_selected *temp;
