@@ -330,7 +330,7 @@ out_unlock_available:
 
     return ret;
 }
-EXPORT_SYMBOL(core_register_check);
+EXPORT_SYMBOL_GPL(core_register_check);
 
 /**
  * Unregistration API Definition
@@ -376,7 +376,7 @@ void core_unregister_check(struct lkm_check *check){
     mutex_unlock(&lock_list_selected);
     mutex_unlock(&lock_list_available);
 }
-EXPORT_SYMBOL(core_unregister_check);
+EXPORT_SYMBOL_GPL(core_unregister_check);
 
 
 //--------------------------------------------------------------------------------
