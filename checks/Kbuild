@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Copyright (C) 2026 Saúl Fernández García <https://github.com/saulfernandezgarcia>
+#
+
+
+#_____ Check selection configuration ____
+# For your developed LKM, create a control variable as stated in the template.
+# 
+# Settings:
+# - m = make into an LKM. Example: obj-m = ...
+# -   = do not make it into an LKM (ignored). Example: obj- = ...
+#
+# Template:
+# CONFIG_CHECK_NAME = m
+
+CONFIG_PLUGIN_A = m
+CONFIG_PLUGIN_B = m
+
+
+#_____ Check directory location _________
+# Please also specify the corresponding subfolder in which it is located. 
+#
+# Template:
+# obj-$(CONFIG_CHECK_NAME) += pluginfolder/
+
+obj-$(CONFIG_PLUGIN_A) += plugin_a/
+obj-$(CONFIG_PLUGIN_B) += plugin_b/
+
+

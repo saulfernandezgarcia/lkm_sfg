@@ -17,8 +17,8 @@ static void __exit plugin_exit(void);
 static struct lkm_check plugin_a_check = {
     .api_version = LKM_CHECK_API_VERSION,
     .owner = THIS_MODULE,
-    .name = "plugina",
-    .alias = "plugina",
+    .name = "plugin_a",
+    .alias = "plugin_a",
     .category = "Sample Plugin A. Prints to standard output and kernel output.",
     .run = plugin_a_process,
 };
@@ -41,6 +41,6 @@ static void __exit plugin_exit(void){
 module_exit(plugin_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("plugina");
+MODULE_ALIAS("plugin_a");
 MODULE_AUTHOR("SAUL FERNANDEZ GARCIA");
 MODULE_DESCRIPTION("Sample Plugin");

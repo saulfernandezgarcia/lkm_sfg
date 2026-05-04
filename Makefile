@@ -4,30 +4,51 @@
 #
 
 PWD := $(CURDIR)
-MID := sfg		#Module Installation Directory
-# they will be installed at /lib/modules/<kernelversion>/sfg/
+MID := sfg		#Module Installation Directory. They will be installed at /lib/modules/<kernelversion>/sfg/
+KVER := $(shell uname -r)
+KDIR := /lib/modules/$(KVER)/build
+
+
+.PHONY: all clean install uninstall reinstall mic minstall
+
 
 all:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
 clean:
-	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
 
 install:
-	$(MAKE) INSTALL_MOD_DIR=$(MID) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules_install
+	$(MAKE) -C $(KDIR) M=$(PWD) INSTALL_MOD_DIR=$(MID) modules_install
 	depmod -a
-
-# ^^ include in "install" function also a "depmod -a"?
-
-minstall: all install
 
 mic: all install clean
 
+minstall: all install
+
+reinstall: clean all install
+
+
+####################################################################
+
+
 uninstall:
-	-modprobe -r core
-	-rrmod plugin_a
-	rm -r /lib/modules/$(shell uname -r)/sfg
+	- modprobe -r plugin_a
+	- modprobe -r plugin_b
+	- modprobe -r sfgcore
+	rm -rf /lib/modules/$(KVER)/$(MID)
 	depmod -a
 
-# insert (with modprobe)?
-# remove?
+#
+
+load:
+	modprobe sfgcore
+	modprobe plugin_a
+	modprobe plugin_b
+
+# Unloading must reverse the order of loading. At the very least, sfgcore must be the first to load and the last to unload.
+
+unload:
+	- modprobe -r plugin_a
+	- modprobe -r plugin_b
+	- modprobe -r sfgcore
