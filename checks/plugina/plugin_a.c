@@ -19,7 +19,7 @@ static struct lkm_check plugin_a_check = {
     .owner = THIS_MODULE,
     .name = "plugina",
     .alias = "plugina",
-    .category = "sample",
+    .category = "Sample Plugin A. Prints to standard output and kernel output.",
     .run = plugin_a_process,
 };
 

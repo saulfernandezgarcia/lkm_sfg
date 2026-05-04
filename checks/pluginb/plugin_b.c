@@ -19,7 +19,7 @@ static struct lkm_check plugin_b_check = {
     .owner = THIS_MODULE,
     .name = "pluginb",
     .alias = "pluginb",
-    .category = "sample",
+    .category = "Sample Plugin B. Counts processes.",
     .run = plugin_b_enumeration,
 };
 
