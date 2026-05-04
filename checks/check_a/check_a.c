@@ -19,7 +19,7 @@ static struct lkm_check check_a_check = {
     .owner = THIS_MODULE,
     .name = "check_a",
     .alias = "check_a",
-    .category = "Sample Check A. Prints to standard output and kernel output.",
+    .category = "sample",
     .run = check_a_process,
 };
 
@@ -43,4 +43,4 @@ module_exit(check_exit);
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("check_a");
 MODULE_AUTHOR("SAUL FERNANDEZ GARCIA");
-MODULE_DESCRIPTION("Sample check for console printing.");
+MODULE_DESCRIPTION("Sample check plugin for console printing.");

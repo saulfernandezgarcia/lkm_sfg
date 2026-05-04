@@ -10,17 +10,17 @@
 
 #include "lkm_check.h"
 
-static int plugin_b_enumeration(struct seq_file *m);
-static int __init plugin_init(void);
-static void __exit plugin_exit(void);
+static int check_b_enumeration(struct seq_file *m);
+static int __init check_init(void);
+static void __exit check_exit(void);
 
-static struct lkm_check plugin_b_check = {
+static struct lkm_check check_b_check = {
     .api_version = LKM_CHECK_API_VERSION,
     .owner = THIS_MODULE,
-    .name = "plugin_b",
-    .alias = "plugin_b",
-    .category = "Sample Plugin B. Counts processes.",
-    .run = plugin_b_enumeration,
+    .name = "check_b",
+    .alias = "check_b",
+    .category = "sample",
+    .run = check_b_enumeration,
 };
 
 /**
@@ -30,8 +30,8 @@ static struct lkm_check plugin_b_check = {
  * 
  * https://docs.kernel.org/core-api/printk-formats.html
  */
-static int plugin_b_enumeration(struct seq_file *m){
-    pr_info("Plugin B is saying hi!\n");
+static int check_b_enumeration(struct seq_file *m){
+    pr_info("Check B is saying hi!\n");
 
     struct task_struct *task;
     int count = 0;
@@ -43,21 +43,21 @@ static int plugin_b_enumeration(struct seq_file *m){
 
     seq_printf(m,
         "--- Check %s ---\n"
-        "- Total processes:%d\n", plugin_b_check.alias, count);
+        "- Total processes:%d\n", check_b_check.alias, count);
     return 0;
 }
 
-static int __init plugin_init(void){
-    return core_register_check(&plugin_b_check);
+static int __init check_init(void){
+    return core_register_check(&check_b_check);
 }
-module_init(plugin_init);
+module_init(check_init);
 
-static void __exit plugin_exit(void){
-    core_unregister_check(&plugin_b_check);
+static void __exit check_exit(void){
+    core_unregister_check(&check_b_check);
 }
-module_exit(plugin_exit);
+module_exit(check_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("check_b");
 MODULE_AUTHOR("SAUL FERNANDEZ GARCIA");
-MODULE_DESCRIPTION("Sample plugin for process enumeration");
+MODULE_DESCRIPTION("Sample check plugin for process enumeration");
