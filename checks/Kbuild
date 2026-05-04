@@ -14,8 +14,8 @@
 # Template:
 # CONFIG_CHECK_NAME = m
 
-CONFIG_PLUGIN_A = m
-CONFIG_PLUGIN_B = m
+CONFIG_CHECK_A = m
+CONFIG_CHECK_B = m
 
 
 #_____ Check directory location _________
@@ -24,7 +24,7 @@ CONFIG_PLUGIN_B = m
 # Template:
 # obj-$(CONFIG_CHECK_NAME) += pluginfolder/
 
-obj-$(CONFIG_PLUGIN_A) += plugin_a/
-obj-$(CONFIG_PLUGIN_B) += plugin_b/
+obj-$(CONFIG_CHECK_A) += check_a/
+obj-$(CONFIG_CHECK_B) += check_b/
 
 

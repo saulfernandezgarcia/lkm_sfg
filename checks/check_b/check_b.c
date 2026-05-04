@@ -58,6 +58,6 @@ static void __exit plugin_exit(void){
 module_exit(plugin_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("plugin_b");
+MODULE_ALIAS("check_b");
 MODULE_AUTHOR("SAUL FERNANDEZ GARCIA");
 MODULE_DESCRIPTION("Sample plugin for process enumeration");

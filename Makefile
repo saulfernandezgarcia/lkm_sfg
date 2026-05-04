@@ -31,10 +31,11 @@ reinstall: clean all install
 
 ####################################################################
 
+# Experimental
 
 uninstall:
-	- modprobe -r plugin_a
-	- modprobe -r plugin_b
+	- modprobe -r check_a
+	- modprobe -r check_b
 	- modprobe -r sfgcore
 	rm -rf /lib/modules/$(KVER)/$(MID)
 	depmod -a
@@ -43,12 +44,12 @@ uninstall:
 
 load:
 	modprobe sfgcore
-	modprobe plugin_a
-	modprobe plugin_b
+	modprobe check_a
+	modprobe check_b
 
 # Unloading must reverse the order of loading. At the very least, sfgcore must be the first to load and the last to unload.
 
 unload:
-	- modprobe -r plugin_a
-	- modprobe -r plugin_b
+	- modprobe -r check_a
+	- modprobe -r check_b
 	- modprobe -r sfgcore
