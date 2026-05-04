@@ -23,7 +23,7 @@
  * 
  */
 struct lkm_check {
-    int api_version;            //change to abi(?)
+    int abi_version;
     
     struct module *owner;
 

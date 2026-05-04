@@ -15,7 +15,7 @@ static int __init check_init(void);
 static void __exit check_exit(void);
 
 static struct lkm_check check_a_check = {
-    .api_version = LKM_CHECK_API_VERSION,
+    .abi_version = LKM_CHECK_API_VERSION,
     .owner = THIS_MODULE,
     .name = "check_a",
     .alias = "check_a",
