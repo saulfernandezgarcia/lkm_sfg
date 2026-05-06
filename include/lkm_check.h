@@ -14,7 +14,7 @@
 #include <linux/list.h>
 #include <linux/seq_file.h>
 
-#define LKM_CHECK_API_VERSION 1
+#define LKM_CHECK_ABI_VERSION 1
 #define PLUGIN_MAX_NAME 64
 #define PLUGIN_MAX_ALIAS 64
 #define PLUGIN_MAX_CATEGORY 64
