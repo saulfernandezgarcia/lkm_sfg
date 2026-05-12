@@ -14,7 +14,7 @@ static int check_b_enumeration(struct seq_file *m);
 static int __init check_init(void);
 static void __exit check_exit(void);
 
-static struct lkm_check check_b_check = {
+static struct lkm_check check_b = {
     .abi_version = LKM_CHECK_ABI_VERSION,
     .owner = THIS_MODULE,
     .name = "check_b",
@@ -43,17 +43,17 @@ static int check_b_enumeration(struct seq_file *m){
 
     seq_printf(m,
         "--- Check %s ---\n"
-        "- Total processes:%d\n", check_b_check.alias, count);
+        "- Total processes:%d\n", check_b.alias, count);
     return 0;
 }
 
 static int __init check_init(void){
-    return core_register_check(&check_b_check);
+    return core_register_check(&check_b);
 }
 module_init(check_init);
 
 static void __exit check_exit(void){
-    core_unregister_check(&check_b_check);
+    core_unregister_check(&check_b);
 }
 module_exit(check_exit);
 

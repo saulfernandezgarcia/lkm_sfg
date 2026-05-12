@@ -14,7 +14,7 @@ static int check_a_process(struct seq_file *m);
 static int __init check_init(void);
 static void __exit check_exit(void);
 
-static struct lkm_check check_a_check = {
+static struct lkm_check check_a = {
     .abi_version = LKM_CHECK_ABI_VERSION,
     .owner = THIS_MODULE,
     .name = "check_a",
@@ -31,12 +31,12 @@ static int check_a_process(struct seq_file *m){
 }
 
 static int __init check_init(void){
-    return core_register_check(&check_a_check);
+    return core_register_check(&check_a);
 }
 module_init(check_init);
 
 static void __exit check_exit(void){
-    core_unregister_check(&check_a_check);
+    core_unregister_check(&check_a);
 }
 module_exit(check_exit);
 
