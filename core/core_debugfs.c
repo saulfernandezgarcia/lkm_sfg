@@ -19,9 +19,9 @@ static struct dentry *lkm_dir;
 /**
  * This function will be called back (cb) by the core.
  */
-static void available_cb(struct lkm_check *check, void*data){
+static void available_cb(struct lkm_plugin *plugin, void*data){
     struct seq_file *m = data;
-    seq_printf(m, "%s\n", check->alias);
+    seq_printf(m, "%s\n", plugin->alias);
 }
 
 
@@ -60,9 +60,9 @@ static const struct file_operations fops_available = {
 //--------------------------------------------------------------------------------
 // Selected
 
-static void selected_cb(struct lkm_check *check, void *data){
+static void selected_cb(struct lkm_plugin *plugin, void *data){
     struct seq_file *m = data;
-    seq_printf(m, "%s\n", check->name);
+    seq_printf(m, "%s\n", plugin->name);
 }
 
 static int selected_show(struct seq_file *m, void *v){
@@ -91,11 +91,11 @@ static const struct file_operations fops_selected = {
 //--------------------------------------------------------------------------------
 // Results
 
-static void results_cb(struct lkm_check *check, void*data){
+static void results_cb(struct lkm_plugin *plugin, void*data){
     struct seq_file *m = data;
 
-    seq_printf(m, "==== %s ====\n", check->alias);
-    check->run(m);
+    seq_printf(m, "==== %s ====\n", plugin->alias);
+    plugin->run(m);
     seq_printf(m, "\n");
 }
 
@@ -169,7 +169,7 @@ static ssize_t add_write(struct file* file, const char __user *user_buffer, size
 
     while((token = strsep(&cur, delimiters)) != NULL){
         if(*token != '\0'){
-            ret = core_select_check(token);
+            ret = core_select_plugin(token);
 
             if(ret < 0)
                 last_error = ret;
@@ -260,7 +260,7 @@ static ssize_t remove_write(struct file* file, const char __user *user_buffer, s
 
     while((token = strsep(&cur, delimiters)) != NULL){
         if(*token != '\0'){
-            ret = core_remove_check(token);
+            ret = core_remove_plugin(token);
 
             if(ret < 0)
                 last_error = ret;
@@ -289,7 +289,7 @@ static const struct file_operations fops_remove = {
 /**
  * https://stackoverflow.com/a/6281389
  * https://manpages.debian.org/testing/linux-manual-4.11/debugfs_create_dir.9
- * https://classes.engineering.wustl.edu/cse422/code_pointers/05_kernel_code_error_checking.html
+ * https://classes.engineering.wustl.edu/cse422/code_pointers/05_kernel_code_error_plugining.html
  * 
  * Inspiration for the #define section from list.h > INIT_LIST_HEAD() > rwonce.h > WRITE_ONCE
  * 

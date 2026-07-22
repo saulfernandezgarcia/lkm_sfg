@@ -3,10 +3,10 @@
 # Copyright (C) 2026 Saúl Fernández García <https://github.com/saulfernandezgarcia>
 #
 
-# Build sfgcheck_b
+# Build sfgplugin_c
 
-obj-m := sfgcheck_b.o
+obj-m := sfgplugin_c.o
 
-sfgcheck_b-objs = check_b.o
+sfgplugin_c-objs = plugin_c.o
 
 ccflags-y := -I$(src)/../../include

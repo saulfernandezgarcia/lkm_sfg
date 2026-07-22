@@ -9,34 +9,34 @@
 
 #include <linux/seq_file.h>
 
-#include "lkm_check.h"
+#include "lkm_plugin.h"
 
 
 /**
  * To iterate through the lists
  */
 void core_for_each_available(
-    void (*cb)(struct lkm_check *check, void *data),
+    void (*cb)(struct lkm_plugin *plugin, void *data),
     void *data);
 
 void core_for_each_selected(
-    void (*cb)(struct lkm_check *check, void *data),
+    void (*cb)(struct lkm_plugin *plugin, void *data),
     void *data);
 
 /*
 void core_for_each_selected_run(
-    void (*cb)(struct lkm_check *check, void *data),
+    void (*cb)(struct lkm_plugin *plugin, void *data),
     void *data);
     */
 /**
- * To select the specified check by alias/name
+ * To select the specified plugin by alias/name
  */
-int core_select_check(const char *name);
+int core_select_plugin(const char *name);
 
 /**
  * Remove one specific item from "selected"
  */
-int core_remove_check(const char *name);
+int core_remove_plugin(const char *name);
 
 /**
  * To empty the selected list

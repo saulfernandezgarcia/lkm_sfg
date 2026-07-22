@@ -7,6 +7,6 @@ CONFIG_CORE = m
 CONFIG_CHECKS = m
 
 obj-$(CONFIG_CORE) += core/
-obj-$(CONFIG_CHECKS) += checks/
+obj-$(CONFIG_CHECKS) += plugins/
 
 ccflags-y := -I$(src)/include
