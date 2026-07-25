@@ -19,24 +19,10 @@
 #include "core_internal.h"
 #include "lkm_plugin.h"
 
-
-static LIST_HEAD(list_available);
-static DEFINE_MUTEX(lock_list_available);
-
-static LIST_HEAD(list_selected);
-static DEFINE_MUTEX(lock_list_selected);
+#include "registry.h"
 
 
-struct entry_available{
-    struct list_head list;
-    struct lkm_plugin *plugin;
-};
 
-
-struct entry_selected{
-    struct list_head list;
-    struct lkm_plugin *plugin;
-};
 
 //--------------------------------------------------------------------------------
 //List traversal
@@ -138,8 +124,39 @@ void core_for_each_selected(
 //Entry selection
 
 /**
- * 
+ * ahora core_select_plugin deberá
+ * - comprobar que el plugin existe en available
+ * - solicitar selección mediante selector_add_by_name o selector_add
  */
+
+int core_select_plugin(const char* name){
+    struct lkm_plugin* plugin = registry_acquire(name);
+    
+    if(!plugin)
+        return -ENOENT;
+    
+    int ret = selector_add(plugin);
+    if(ret)
+        registry_release(plugin);
+    
+        return ret;
+
+    /*
+    if(selector_find_plugin_by_name(name)){
+        //already selected, so end
+        return -EEXIST;
+    }
+
+    target = registry_find_plugin_by_name(name);
+    if(!target){
+        return -ENOENT;
+    }
+
+    return selector_add(target);
+    */
+}
+
+/*
 int core_select_plugin(const char *name){
     
     int ret = 0;
@@ -205,6 +222,9 @@ out_unlock_available:
 
     return ret;
 }
+    */
+
+
 
 /**
  * 
@@ -298,98 +318,22 @@ void core_empty_selected(void){
 }
 
 //--------------------------------------------------------------------------------
-
-
-/**
- * Registration API Definition
- * @plugin: plugin plugin to register.
- * 
- * Registration is in queue fashion (list_add_tail).
- */
-int core_register_plugin(struct lkm_plugin *plugin){
-    
-    int ret = 0;
-    struct entry_available *new_entry = NULL;
-
-    pr_info("lkm: plugin %s requesting registration\n", plugin->name);
-    mutex_lock(&lock_list_available);
-    pr_info("lkm: plugin %s began registration\n", plugin->name);
-
-    new_entry = kzalloc(sizeof(*new_entry), GFP_KERNEL);
-    if(!new_entry){
-        ret = -ENOMEM;
-        goto out_unlock_available;
-    }
-
-    new_entry->plugin = plugin;
-    list_add_tail(&new_entry->list, &list_available);
-    pr_info("lkm: plugin %s finished registration\n", plugin->name);
-
-out_unlock_available:
-    mutex_unlock(&lock_list_available);
-
-    return ret;
-}
+// Plugin registration and unregistration from the core
 
 int lkm_register_plugin(struct lkm_plugin *plugin){
     // add safety checks
+    return registry_add(plugin);
 
-    return core_register_plugin(plugin);
 }
 EXPORT_SYMBOL(lkm_register_plugin);
 
 
 
-
-/**
- * Unregistration API Definition
- * @plugin: plugin plugin to unregister.
- * 
- * Unregistration.
- * We first remove the plugin from the "selected" array to be able
- */
-void core_unregister_plugin(struct lkm_plugin *plugin){
-    pr_info("lkm: plugin %s requesting unregistration\n", plugin->name);
-
-    mutex_lock(&lock_list_available);
-    mutex_lock(&lock_list_selected);
-
-    //Removing plugin from "list_selected":
-    struct entry_selected *pos_s;
-    struct entry_selected *temp_s;
-    
-    list_for_each_entry_safe(pos_s, temp_s, &list_selected, list){
-        if(pos_s->plugin == plugin){
-            list_del(&pos_s->list);
-            module_put(pos_s->plugin->owner);
-            kfree(pos_s);
-            break;
-        }
-    }
-
-    //Removing plugin from "available" list
-    struct entry_available *pos_a;
-    struct entry_available *temp_a;
-
-    pr_info("lkm: plugin %s began unregistration\n", plugin->name);
-
-    list_for_each_entry_safe(pos_a, temp_a, &list_available, list){
-        if(pos_a->plugin == plugin){
-            list_del(&pos_a->list);
-            kfree(pos_a);
-            break;
-        }
-    }
-    pr_info("lkm: plugin %s finished unregistration\n", plugin->name);
-
-    mutex_unlock(&lock_list_selected);
-    mutex_unlock(&lock_list_available);
-}
-
 void lkm_unregister_plugin(struct lkm_plugin *plugin){
-    // add safety checks
+    // add safety checks (does plugin exist, is it valid plugin, etc.)
 
-    core_unregister_plugin(plugin);
+    selector_remove(plugin);
+    registry_remove(plugin);
 }
 EXPORT_SYMBOL(lkm_unregister_plugin);
 

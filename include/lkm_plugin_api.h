@@ -30,5 +30,9 @@ static void __exit __lkm_plugin_exit(void){         \
 module_init(__lkm_plugin_init);                     \
 module_exit(__lkm_plugin_exit);
 
+// Idea: public API call to get plugin alias
+
+// lkm_get_alias
+// lkm_get_owner
 
 #endif
