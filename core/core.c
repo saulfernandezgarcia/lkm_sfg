@@ -124,11 +124,8 @@ void core_for_each_selected(
 //Entry selection
 
 /**
- * ahora core_select_plugin deberá
- * - comprobar que el plugin existe en available
- * - solicitar selección mediante selector_add_by_name o selector_add
+ * 
  */
-
 int core_select_plugin(const char* name){
     struct lkm_plugin* plugin = registry_acquire(name);
     
@@ -139,93 +136,13 @@ int core_select_plugin(const char* name){
     if(ret)
         registry_release(plugin);
     
-        return ret;
-
-    /*
-    if(selector_find_plugin_by_name(name)){
-        //already selected, so end
-        return -EEXIST;
-    }
-
-    target = registry_find_plugin_by_name(name);
-    if(!target){
-        return -ENOENT;
-    }
-
-    return selector_add(target);
-    */
-}
-
-/*
-int core_select_plugin(const char *name){
-    
-    int ret = 0;
-    struct lkm_plugin *found = NULL;
-    struct entry_available *pos = NULL;
-    struct entry_selected *sel = NULL;
-
-    //Check to see if the plugin is available
-    mutex_lock(&lock_list_available);
-    list_for_each_entry(pos, &list_available, list){
-        if(strcmp(pos->plugin->alias, name) == 0 || strcmp(pos->plugin->name, name) == 0){
-            found = pos->plugin;
-            break;
-        }
-    }
-
-    //If found, actually store the data into our list of selected plugins
-    if(!found){
-        ret = -ENOENT;
-        goto out_unlock_available;
-
-    } 
-
-    //__Check if plugin is already in list of selected
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry(sel, &list_selected, list){
-        if(sel->plugin == found){
-            ret = -EEXIST;
-            goto out_unlock_selected;
-        }
-    }
-
-    //__Take module reference for refcount
-    if(!try_module_get(found->owner)){
-        ret = -EINVAL;
-        goto out_unlock_selected;
-    }
-    
-    //Allocate new entry_selected for list_selected
-    sel = kzalloc(sizeof(*sel), GFP_KERNEL);
-    if(!sel){
-        ret = -ENOMEM;
-        goto out_module_put;
-    }
-    
-    pr_info("lkm: plugin %s was not in selected list. It will now be added.\n", found->alias);
-    sel->plugin = found;
-    list_add_tail(&sel->list, &list_selected);
-    ret = 0;
-    pr_info("lkm: added to 'selected' the plugin with alias: %s\n", found->alias);
-
-    goto out_unlock_selected; //equivalent to performing unlock(selected) and unlock(available) and then return 0;
-
-out_module_put:
-    module_put(found->owner);
-
-out_unlock_selected:
-    mutex_unlock(&lock_list_selected);
-
-out_unlock_available:
-    mutex_unlock(&lock_list_available);
-
-
     return ret;
 }
-    */
 
 
 
+
+//TODO
 /**
  * 
  * Best-effort approach, returns last error if any.
@@ -276,10 +193,15 @@ int core_addall(void){
     return last_ret;
 }
 
+//DONE
 /**
- * 
- * list_for_each_entry_safe()
+ * Deselects plugin
  */
+int core_remove_plugin(const char*name){
+    return selector_remove(name);
+}
+
+    /*
 int core_remove_plugin(const char*name){
     struct entry_selected *pos;
     struct entry_selected *temp;
@@ -303,6 +225,7 @@ int core_remove_plugin(const char*name){
 
     return 0;
 }
+*/
 
 void core_empty_selected(void){
     struct entry_selected *pos;

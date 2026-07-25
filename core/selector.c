@@ -37,111 +37,82 @@ struct entry_selected{
  */
 int selector_add(struct lkm_plugin* plugin){
     
-    int ret = 0;
-    struct entry_selected *sel = NULL;
-    
+    struct entry_selected* pos;
 
-    //__Check if plugin is already in list of selected
     mutex_lock(&lock_list_selected);
-    list_for_each_entry(sel, &list_selected, list){
-        if(sel->plugin == plugin){
-            ret = -EEXIST;
-            goto out_unlock_selected;   
-        }
+
+    pos = selector_find_plugin_locked(plugin);
+    if(pos){
+        //Entry already exists
+        mutex_unlock(&lock_list_selected);
+        return -EEXIST;
     }
 
     //Allocate new entry_selected for list_selected
-    sel = kzalloc(sizeof(*sel), GFP_KERNEL);
-    if(!sel){
-        ret = -ENOMEM;
-        goto out_unlock_selected;
+    pos = kzalloc(sizeof(*pos), GFP_KERNEL);
+    if(!pos){
+        mutex_unlock(&lock_list_selected);
+        return -ENOMEM;
     }
 
     pr_info("lkm: selector: plugin %s was not in selected list. It will now be added.\n", plugin->alias);
-    sel->plugin = plugin;
-    list_add_tail(&sel->list, &list_selected);
+    pos->plugin = plugin;
+    list_add_tail(&pos->list, &list_selected);
     pr_info("lkm: selector: added to 'selected' the plugin with alias: %s\n", plugin->alias);
 
-out_unlock_selected:
     mutex_unlock(&lock_list_selected);
 
-    return ret;
-
-    /*
-    
-    int ret = 0;
-    struct lkm_plugin *found = NULL;
-    struct entry_selected *sel = NULL;
-
-    
-
-    //__Check if plugin is already in list of selected
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry(sel, &list_selected, list){
-        if(sel->plugin == plugin){
-            ret = -EEXIST;
-            goto out_unlock_selected;
-        }
-    }
-
-    //__Take module reference for refcount
-    if(!try_module_get(plugin->owner)){
-        ret = -EINVAL;
-        goto out_unlock_selected;
-    }
-    
-    //Allocate new entry_selected for list_selected
-    sel = kzalloc(sizeof(*sel), GFP_KERNEL);
-    if(!sel){
-        ret = -ENOMEM;
-        goto out_module_put;
-    }
-    
-    pr_info("lkm: selector: plugin %s was not in selected list. It will now be added.\n", found->alias);
-    sel->plugin = found;
-    list_add_tail(&sel->list, &list_selected);
-    ret = 0;
-    pr_info("lkm: selector: added to 'selected' the plugin with alias: %s\n", found->alias);
-
-    goto out_unlock_selected; //equivalent to performing unlock(selected) and unlock(available) and then return 0;
-
-out_module_put:
-    module_put(found->owner);
-
-out_unlock_selected:
-    mutex_unlock(&lock_list_selected);
-
-    return ret;
-    */
+    return 0;
 }
 
 
 
-void selector_remove(struct lkm_plugin* plugin){
-    pr_info("lkm: selector: plugin %s requesting removal from list of selected plugins\n", plugin->name);
+int selector_remove(const char* name){
+    struct entry_selected *pos;
 
     mutex_lock(&lock_list_selected);
 
-    //Removing plugin from "list_selected":
-    struct entry_selected *pos_s;
-    struct entry_selected *temp_s;
-    
-    list_for_each_entry_safe(pos_s, temp_s, &list_selected, list){
-        if(pos_s->plugin == plugin){
-            list_del(&pos_s->list);
-            module_put(pos_s->plugin->owner);
-            kfree(pos_s);
-            break;
-        }
+    pos = selector_find_name_locked(name);    
+    if(!pos){
+        mutex_unlock(&lock_list_selected);
+        return -ENOENT;
     }
 
-    pr_info("lkm: selector: plugin %s was removed from list of selected plugins\n", plugin->name);
-
+    list_del(&pos->list);
+    kfree(pos);
     mutex_unlock(&lock_list_selected);
+
+    registry_release(pos->plugin);
+
+    return 0;
 }
 
-void selector_remove_by_name(const char* name){
+/**
+ * Assumes the mutex lock_list_selected for list_selected is already held.
+ * Traverses list_selected entries and tries to find a matching plugin.
+ * Returns entry_selected if successful.
+ */
+static struct entry_selected* selector_find_name_locked(const char* name){
+    struct entry_selected *pos;
+    list_for_each_entry(pos, &list_selected, list){
+        if(strcmp(pos->plugin->alias, name) == 0 || strcmp(pos->plugin->name, name) == 0){
+            return pos;
+        }
+    }
+    return NULL;
+}
 
+/**
+ * Assumes the mutex lock_list_selected is held.
+ */
+static struct entry_selected* selector_find_plugin_locked(struct lkm_plugin* plugin){
+    struct entry_selected *pos;
+    list_for_each_entry(pos, &list_selected, list){
+        if(pos->plugin == plugin){
+            return pos;
+        }
+    }
+    return NULL;
 }
 
 /*
