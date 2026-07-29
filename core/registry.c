@@ -29,6 +29,34 @@ struct entry_available{
 };
 
 /**
+ * Assumes the mutex lock_list_available is held before the call of this function.
+ */
+static struct entry_available* registry_find_name_locked(const char* name){
+    struct entry_available *pos;
+    list_for_each_entry(pos, &list_available, list){
+        if(strcmp(pos->plugin->alias, name) == 0 || strcmp(pos->plugin->name, name) == 0){
+            return pos;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Assumes the mutex lock_list_available is held before the call of this function.
+ */
+static struct entry_available* registry_find_plugin_locked(struct lkm_plugin* plugin){
+    struct entry_available *pos;
+    list_for_each_entry(pos, &list_available, list){
+        if(pos->plugin == plugin){
+            return pos;
+        }
+    }
+    return NULL;
+}
+
+
+
+/**
  * 
  * Also increases module reference count for the plugin. After use of plugin is finished,
  * registry_release should be called unless ownership is being transferred.
@@ -75,6 +103,8 @@ int registry_add(struct lkm_plugin* plugin){
     struct entry_available *aux = NULL;
 
 
+    pr_info("lkm: plugin %s requesting registration\n", plugin->name);
+
     //__Check if plugin is already in list of available
     mutex_lock(&lock_list_available);
     list_for_each_entry(aux, &list_available, list){
@@ -83,11 +113,6 @@ int registry_add(struct lkm_plugin* plugin){
             goto out_unlock_available;   
         }
     }
-
-
-    pr_info("lkm: plugin %s requesting registration\n", plugin->name);
-    mutex_lock(&lock_list_available);
-    pr_info("lkm: plugin %s began registration\n", plugin->name);
 
     //Allocate new entry_available for list_selected 
     new_entry = kzalloc(sizeof(*new_entry), GFP_KERNEL);
@@ -137,38 +162,81 @@ void registry_remove(struct lkm_plugin* plugin){
     mutex_unlock(&lock_list_available);
 }
 
-/*
-unsafe for now, think about pointer lifetime outside mutexes. No protection!!!
 
-struct lkm_plugin* registry_find_plugin_by_name(const char* name){
+//DONE
+/**
+ * Calls callback "cb" for each available plugin.
+ * 
+ * Each plugin has their module reference increased.
+ * Ownership of the reference is transfered to the callback cb function.
+ * The cb must either:
+ * - transfer the ownership of the reference elsewhere
+ * - call registry_release() to reduce the module reference again.
+ */
+int registry_for_each_acquired(
+    int (*cb)(struct lkm_plugin *plugin, void *data),
+    void *data){
+    
+    struct entry_available *pos;
+    struct lkm_plugin **snapshot;
 
-    int found = 0;
-    struct entry_available *pos = NULL;
+    int count = 0;
+    int i = 0;
+    int ret = 0;
 
-    //Check to see if the plugin is in available
+    // Count how many entries in list_available
     mutex_lock(&lock_list_available);
+    list_for_each_entry(pos, &list_available, list)
+        count++;
+
+    if(!count){
+        mutex_unlock(&lock_list_available);
+        return 0;
+    }
+
+    // Allocate memory for snapshot array of plugins
+    snapshot = kcalloc(count, sizeof(*snapshot), GFP_KERNEL);
+    if(!snapshot){
+        mutex_unlock(&lock_list_available);
+        return -ENOMEM;
+    }
+
+    //Add plugins to snapshot + pin them to avoid unregistration
     list_for_each_entry(pos, &list_available, list){
-        if(strcmp(pos->plugin->alias, name) == 0 || strcmp(pos->plugin->name, name) == 0){
-            found = 1;
-            break;
+        if(try_module_get(pos->plugin->owner)){
+            snapshot[i] = pos->plugin;
+            i++;
         }
     }
     mutex_unlock(&lock_list_available);
 
-    if(!found){
-        return NULL;
+    for(int j = 0; j < i; j++){
+        int cb_ret;
+        cb_ret = cb(snapshot[j], data);
+
+        if(cb_ret && !ret)
+            ret = cb_ret;
     }
 
-    return pos->plugin;
+    kfree(snapshot);  
+
+    return ret;
 }
 
-*/
 
-/**
- * Allow for interaction with snapshot of contents in registry.
- */
-void registry_snapshot(    
-    void (*cb)(struct lkm_plugin *plugin, void *data),
-    void *data){
+//DOING
+void registry_destroy(void){
+    struct entry_available *pos;
+    struct entry_available *temp;
 
+    mutex_lock(&lock_list_available);
+
+    list_for_each_entry_safe(pos, temp, &list_available, list){
+        pr_info("-Deleting plugin from available ones: %s\n", pos->plugin->alias);
+        list_del(&pos->list);
+        kfree(pos);
     }
+
+    mutex_unlock(&lock_list_available);
+    
+}

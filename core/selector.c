@@ -65,24 +65,51 @@ int selector_add(struct lkm_plugin* plugin){
     return 0;
 }
 
+static struct lkm_plugin * selector_remove_entry(struct entry_selected* entry){
+    struct lkm_plugin* plugin = entry->plugin;
+
+    list_del(&entry->list);
+    kfree(entry);
+
+    return plugin;
+}
 
 
 int selector_remove(const char* name){
-    struct entry_selected *pos;
+    struct entry_selected *entry;
+    struct lkm_plugin* plugin;
 
     mutex_lock(&lock_list_selected);
 
-    pos = selector_find_name_locked(name);    
-    if(!pos){
+    entry = selector_find_name_locked(name);    
+    if(!entry){
         mutex_unlock(&lock_list_selected);
         return -ENOENT;
     }
+    plugin = selector_remove_entry(entry);
 
-    list_del(&pos->list);
-    kfree(pos);
     mutex_unlock(&lock_list_selected);
 
-    registry_release(pos->plugin);
+    registry_release(plugin);
+
+    return 0;
+}
+
+int selector_remove_plugin(struct lkm_plugin* plugin){
+    struct entry_selected *entry;
+        
+    mutex_lock(&lock_list_selected);
+
+    entry = selector_find_plugin_locked(plugin);
+    if(!entry){
+        mutex_unlock(&lock_list_selected);
+        return -ENOENT;
+    }
+    plugin = selector_remove_entry(entry);
+    
+    mutex_unlock(&lock_list_selected);
+
+    registry_release(plugin);
 
     return 0;
 }
@@ -115,37 +142,78 @@ static struct entry_selected* selector_find_plugin_locked(struct lkm_plugin* plu
     return NULL;
 }
 
-/*
-unsafe! pointer post-function lifetime protection
+/**
+ * Calls callback "cb" for each selected plugin.
+ * 
+ * Each plugin is pinned with a temporary module reference increase, and then it is decreased after cb returns.
+ * Ownership of the reference is NOT transfered to the callback cb function.
+ */
+int selector_for_each(
+    int (*cb)(struct lkm_plugin *plugin, void *data),
+    void *data
+){  
+    struct entry_selected *pos;
+    struct lkm_plugin **snapshot;
 
-struct lkm_plugin* selector_find_plugin_by_name(const char* name){
-    
-    int found = 0;
-    struct entry_selected *sel = NULL;
+    int count = 0;
+    int i = 0;
+    int ret = 0;
 
-    //Check to see if the plugin is in selected
+    //Count how many entries in list_selected
     mutex_lock(&lock_list_selected);
-    list_for_each_entry(sel, &list_selected, list){
-        if(strcmp(sel->plugin->alias, name) == 0 || strcmp(sel->plugin->name, name) == 0){
-            found = 1;
-            break;
+    list_for_each_entry(pos, &list_selected, list){
+        count++;
+    }
+    
+    if(!count){
+        mutex_unlock(&lock_list_selected);
+        return 0;
+    }
+
+    snapshot = kcalloc(count, sizeof(*snapshot), GFP_KERNEL);
+    if(!snapshot){
+        mutex_unlock(&lock_list_selected);
+        return -ENOMEM;
+    }
+
+    //Add plugins to snapshot + pin them to avoid unregistration
+    list_for_each_entry(pos, &list_selected, list){
+        if(try_module_get(pos->plugin->owner)){
+            snapshot[i] = pos->plugin;
+            i++;
         }
     }
     mutex_unlock(&lock_list_selected);
 
-    if(!found){
-        return NULL;
+    //Run the plugins with no locked lists along the process
+    for(int j = 0; j < i; j++){
+        int cb_ret;
+
+        cb_ret = cb(snapshot[j], data);
+        module_put(snapshot[j]->owner);
+
+        if(cb_ret && !ret)
+            ret = cb_ret;
     }
 
-    return sel->plugin;
-}
-*/
+    kfree(snapshot);
 
-/**
- * Allow for interaction with snapshot of contents in registry.
- */
-void selector_snapshot(    
-    void (*cb)(struct lkm_plugin *plugin, void *data),
-    void *data){
-        
+    return ret;
+}
+
+
+//DONE
+void selector_destroy(void){
+    struct entry_selected *pos;
+    struct entry_selected *temp;
+    
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry_safe(pos, temp, &list_selected, list){
+        pr_info("-Deleting plugin from list of selected: %s\n", pos->plugin->alias);
+        list_del(&pos->list);
+        registry_release(plugin);
+        kfree(pos);
+    }
+    mutex_unlock(&lock_list_selected);
+
 }

@@ -20,6 +20,7 @@
 #include "lkm_plugin.h"
 
 #include "registry.h"
+#include "selector.h"
 
 
 
@@ -27,6 +28,7 @@
 //--------------------------------------------------------------------------------
 //List traversal
 
+/*
 void core_for_each_available(
     void (*cb)(struct lkm_plugin *plugin, void *data),
     void*data){
@@ -67,13 +69,14 @@ void core_for_each_available(
 
     kfree(snapshot);    
 }
+*/
 
-
+/*
 /**
  * 
  * kmalloc calloc array allocation: kcalloc
  * https://www.kernel.org/doc/html/v5.0/core-api/mm-api.html#c.kzalloc
- */
+
 void core_for_each_selected(
     void (*cb)(struct lkm_plugin *plugin, void *data),
     void*data){
@@ -119,10 +122,12 @@ void core_for_each_selected(
     kfree(snapshot);
 
 }
+*/
 
 //--------------------------------------------------------------------------------
 //Entry selection
 
+//DONE
 /**
  * 
  */
@@ -139,110 +144,50 @@ int core_select_plugin(const char* name){
     return ret;
 }
 
-
-
-
-//TODO
+//DONE
 /**
  * 
  * Best-effort approach, returns last error if any.
  */
 int core_addall(void){
-
-    struct entry_available *pos = NULL;
-    struct entry_selected *sel = NULL;
-    struct entry_selected *new_sel = NULL;
-    int last_ret = 0;
-
-    mutex_lock(&lock_list_available);
-    mutex_lock(&lock_list_selected);
-
-    list_for_each_entry(pos, &list_available, list){
-
-        int already = 0;
-        list_for_each_entry(sel, &list_selected, list){
-            if(sel->plugin == pos->plugin){
-                already = 1;
-                break;
-            }
-        }
-
-        if(already)
-            continue;
-
-        if(!try_module_get(pos->plugin->owner)){
-            last_ret = -EINVAL;
-            continue;
-        }
-
-        new_sel = kzalloc(sizeof(*new_sel), GFP_KERNEL);
-        if(!new_sel){
-            module_put(pos->plugin->owner);
-            last_ret = -ENOMEM;
-            continue;
-        }
-
-        new_sel->plugin = pos->plugin;
-        list_add_tail(&new_sel->list, &list_selected);
-        pr_info("lkm: added to 'selected' the plugin with alias: %s\n", new_sel->plugin->alias);
-    }
-
-    mutex_unlock(&lock_list_selected);
-    mutex_unlock(&lock_list_available);
-
-    return last_ret;
+    return registry_for_each_acquired(core_addall_cb, NULL);
 }
+
+static int core_addall_cb(struct lkm_plugin *plugin, void *data){
+    int ret;
+    
+    ret = selector_add(plugin);
+    if(ret)
+        registry_release(plugin);
+    
+    return ret;
+}
+
+
 
 //DONE
 /**
  * Deselects plugin
  */
-int core_remove_plugin(const char*name){
+int core_remove_plugin(const char* name){
     return selector_remove(name);
 }
 
-    /*
-int core_remove_plugin(const char*name){
-    struct entry_selected *pos;
-    struct entry_selected *temp;
-    int found = 0;
 
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry_safe(pos, temp, &list_selected, list){
-        if(strcmp(pos->plugin->alias, name) == 0 || strcmp(pos->plugin->name, name) == 0){
-            list_del(&pos->list);
-            pr_info("lkm: removed from 'selected' the plugin with alias: %s\n", pos->plugin->alias);
-            module_put(pos->plugin->owner);
-            kfree(pos);
-            found = 1;
-            break;
-        }
-    }
-    mutex_unlock(&lock_list_selected);
-
-    if(!found)
-        return -ENOENT;
-
-    return 0;
+//DONE
+int core_empty_selected(void){
+    return selector_for_each(core_empty_cb, NULL);
 }
-*/
 
-void core_empty_selected(void){
-    struct entry_selected *pos;
-    struct entry_selected *temp;
-
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry_safe(pos, temp, &list_selected, list){
-        list_del(&pos->list);
-        module_put(pos->plugin->owner);
-        kfree(pos);
-    }
-    mutex_unlock(&lock_list_selected);
+static int core_empty_cb(struct lkm_plugin *plugin, void* data){
+    return selector_remove_plugin(plugin);
 }
+
 
 //--------------------------------------------------------------------------------
 // Plugin registration and unregistration from the core
 
+//DONE
 int lkm_register_plugin(struct lkm_plugin *plugin){
     // add safety checks
     return registry_add(plugin);
@@ -251,7 +196,7 @@ int lkm_register_plugin(struct lkm_plugin *plugin){
 EXPORT_SYMBOL(lkm_register_plugin);
 
 
-
+//DONE
 void lkm_unregister_plugin(struct lkm_plugin *plugin){
     // add safety checks (does plugin exist, is it valid plugin, etc.)
 
@@ -278,6 +223,7 @@ static int __init core_init(void){
 }
 module_init(core_init);
 
+
 /**
  * __exit
  * 
@@ -288,38 +234,19 @@ static void __exit core_exit(void){
     pr_info("lkm CORE: removing from kernel\n");
 
     //Free list_selected
-    struct entry_selected *pos_s;
-    struct entry_selected *temp_s;
-    
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry_safe(pos_s, temp_s, &list_selected, list){
-        pr_info("-Deleting plugin from list of selected: %s\n", pos_s->plugin->alias);
-        list_del(&pos_s->list);
-        module_put(pos_s->plugin->owner);
-        kfree(pos_s);
-    }
-    mutex_unlock(&lock_list_selected);
+    selector_free_list();
 
     //Free list_available
-    struct entry_available *pos_a;
-    struct entry_available *temp_a;
+    registry_free_list();
 
-    mutex_lock(&lock_list_available);
-
-    list_for_each_entry_safe(pos_a, temp_a, &list_available, list){
-        pr_info("-Deleting plugin from available ones: %s\n", pos_a->plugin->alias);
-        list_del(&pos_a->list);
-        kfree(pos_a);
-    }
-
-    mutex_unlock(&lock_list_available);
-
-    //Remove debugfs:
+    //Remove debugfs
     core_debugfs_exit();
 
     pr_info("lkm CORE: removed from kernel\n");
 }
 module_exit(core_exit);
+
+
 
 //--------------------------------------------------------------------------------
 
