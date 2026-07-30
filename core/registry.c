@@ -12,12 +12,11 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
-#include <linux/seq_file.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
 
-#include "core_internal.h"
+
 #include "lkm_plugin.h"
+#include "registry.h"
 
 
 static LIST_HEAD(list_available);

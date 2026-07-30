@@ -6,18 +6,16 @@
  */
 
 
-#include <linux/debugfs.h>
-#include <linux/init.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/kernel.h>
 #include <linux/printk.h>
-#include <linux/seq_file.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
+#include <linux/string.h>
 
-#include "core_internal.h"
-#include "lkm_plugin.h"
+#include "selector.h"
+#include "registry.h"
 
 static LIST_HEAD(list_selected);
 static DEFINE_MUTEX(lock_list_selected);

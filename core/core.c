@@ -14,13 +14,13 @@
 #include <linux/printk.h>
 #include <linux/seq_file.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
 
-#include "core_internal.h"
-#include "lkm_plugin.h"
 
 #include "registry.h"
 #include "selector.h"
+#include "executor.h"
+#include "core_internal.h"
+#include "lkm_plugin.h"
 
 
 
@@ -64,7 +64,6 @@ static int core_addall_cb(struct lkm_plugin *plugin, void *data){
 }
 
 
-
 //DONE
 /**
  * Deselects plugin
@@ -78,6 +77,14 @@ int core_remove_plugin(const char* name){
 int core_empty_selected(void){
     return selector_clear();
 }
+
+//--------------------------------------------------------------------------------
+// Plugin execution
+
+int core_execute_selected(struct seq_file* m){
+    return executor_run_selected(m);
+}
+
 
 //--------------------------------------------------------------------------------
 // Plugin registration and unregistration from the core
