@@ -65,6 +65,7 @@ int selector_add(struct lkm_plugin* plugin){
     return 0;
 }
 
+
 static struct lkm_plugin * selector_remove_entry(struct entry_selected* entry){
     struct lkm_plugin* plugin = entry->plugin;
 
@@ -110,6 +111,23 @@ int selector_remove_plugin(struct lkm_plugin* plugin){
     mutex_unlock(&lock_list_selected);
 
     registry_release(plugin);
+
+    return 0;
+}
+
+
+void selector_clear(void){
+    struct entry_selected *pos;
+    struct entry_selected *temp;
+    struct lkm_plugin* plugin;
+    
+    mutex_lock(&lock_list_selected);
+    list_for_each_entry_safe(pos, temp, &list_selected, list){
+        pr_info("-Deleting plugin from list of selected: %s\n", pos->plugin->alias);
+        plugin = selector_remove_entry(pos);
+        registry_release(plugin);
+    }
+    mutex_unlock(&lock_list_selected);
 
     return 0;
 }
@@ -203,17 +221,12 @@ int selector_for_each(
 
 
 //DONE
+/**
+ * Destroy selector subsystem.
+ * Currently calls selector_clear() because goal is emptying list_selected.
+ * However, this call is left for the evolution of the selector and potential
+ * increase in teardown operations.
+ */
 void selector_destroy(void){
-    struct entry_selected *pos;
-    struct entry_selected *temp;
-    
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry_safe(pos, temp, &list_selected, list){
-        pr_info("-Deleting plugin from list of selected: %s\n", pos->plugin->alias);
-        list_del(&pos->list);
-        registry_release(plugin);
-        kfree(pos);
-    }
-    mutex_unlock(&lock_list_selected);
-
+    selector_clear();
 }

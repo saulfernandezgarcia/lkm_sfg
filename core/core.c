@@ -24,106 +24,6 @@
 
 
 
-
-//--------------------------------------------------------------------------------
-//List traversal
-
-/*
-void core_for_each_available(
-    void (*cb)(struct lkm_plugin *plugin, void *data),
-    void*data){
-    
-    struct entry_available *pos;
-    struct lkm_plugin **snapshot;
-
-    int count = 0;
-    int i = 0;
-
-    mutex_lock(&lock_list_available);
-    list_for_each_entry(pos, &list_available, list)
-        count++;
-
-    if(!count){
-        mutex_unlock(&lock_list_available);
-        return;
-    }
-
-    snapshot = kcalloc(count, sizeof(*snapshot), GFP_KERNEL);
-    if(!snapshot){
-        mutex_unlock(&lock_list_available);
-        return;
-    }
-
-    list_for_each_entry(pos, &list_available, list){
-        if(try_module_get(pos->plugin->owner)){
-            snapshot[i] = pos->plugin;
-            i++;
-        }
-    }
-    mutex_unlock(&lock_list_available);
-
-    for(int j = 0; j < i; j++){
-        cb(snapshot[j], data);
-        module_put(snapshot[j]->owner);
-    }
-
-    kfree(snapshot);    
-}
-*/
-
-/*
-/**
- * 
- * kmalloc calloc array allocation: kcalloc
- * https://www.kernel.org/doc/html/v5.0/core-api/mm-api.html#c.kzalloc
-
-void core_for_each_selected(
-    void (*cb)(struct lkm_plugin *plugin, void *data),
-    void*data){
-    
-    struct entry_selected *pos = NULL;
-    struct lkm_plugin **snapshot = NULL;
-    int count = 0;
-    int i = 0;
-
-    //Count how many plugins to run and allocate array
-    mutex_lock(&lock_list_selected);
-    list_for_each_entry(pos, &list_selected, list){
-        count++;
-    }
-    
-
-    if(!count){
-        mutex_unlock(&lock_list_selected);
-        return;
-    }
-
-    snapshot = kcalloc(count, sizeof(*snapshot), GFP_KERNEL);
-    if(!snapshot){
-        mutex_unlock(&lock_list_selected);
-        return;
-    }
-
-    //Add plugins to snapshot + pin them to avoid unregistration
-    list_for_each_entry(pos, &list_selected, list){
-        if(try_module_get(pos->plugin->owner)){
-            snapshot[i] = pos->plugin;
-            i++;
-        }
-    }
-    mutex_unlock(&lock_list_selected);
-
-    //Run the plugins with no locked lists along the process
-    for(int j = 0; j < i; j++){
-        cb(snapshot[j], data);
-        module_put(snapshot[j]->owner);
-    }
-
-    kfree(snapshot);
-
-}
-*/
-
 //--------------------------------------------------------------------------------
 //Entry selection
 
@@ -176,13 +76,8 @@ int core_remove_plugin(const char* name){
 
 //DONE
 int core_empty_selected(void){
-    return selector_for_each(core_empty_cb, NULL);
+    return selector_clear();
 }
-
-static int core_empty_cb(struct lkm_plugin *plugin, void* data){
-    return selector_remove_plugin(plugin);
-}
-
 
 //--------------------------------------------------------------------------------
 // Plugin registration and unregistration from the core
@@ -208,7 +103,7 @@ EXPORT_SYMBOL(lkm_unregister_plugin);
 
 
 //--------------------------------------------------------------------------------
-
+// Initialitation and Exit of module
 
 /**
  * __init
